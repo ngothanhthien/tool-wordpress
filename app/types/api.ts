@@ -1,0 +1,9 @@
+export interface GenerateProductRequest {
+  chatInput: string
+}
+
+export interface ApiResponse<T> {
+  data: T
+  error: string | null
+  message: string
+}
