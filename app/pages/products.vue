@@ -105,6 +105,17 @@ const columns: TableColumn<ProductWithCategory>[] = [
     },
   },
   {
+    accessorKey: 'category',
+    header: 'Category',
+    cell: ({ row }: { row: any }) => {
+      const category = (row.original as ProductWithCategory).category
+      if (!category) {
+        return h('span', { class: 'text-muted text-sm' }, 'Uncategorized')
+      }
+      return h('span', { class: 'text-sm' }, category.name)
+    },
+  },
+  {
     accessorKey: 'images',
     header: 'Images',
     cell: ({ row }: { row: any }) => {
