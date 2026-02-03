@@ -61,6 +61,7 @@ const uploadForm = reactive({
   uploadImages: [] as boolean[],
   imageLoaded: [] as boolean[],
   price: null as number | null,
+  categoryId: null as string | null,
 })
 
 // Status colors
@@ -269,6 +270,7 @@ function openUploadModal(product: ProductWithCategory) {
   uploadForm.uploadImages = product.images.map(() => false)
   uploadForm.imageLoaded = product.images.map(() => true)
   uploadForm.price = product.price
+  uploadForm.categoryId = product.category_id
   currentStep.value = 0
   isUploadModalOpen.value = true
 }
@@ -448,6 +450,20 @@ async function submitUpload() {
             <!-- HTML Content (Preview) -->
             <UFormField label="HTML Content">
               <UTextarea v-model="uploadForm.html_content" class="w-full" placeholder="HTML content" :rows="5" readonly />
+            </UFormField>
+
+            <!-- Category -->
+            <UFormField label="Category">
+              <USelect
+                v-model="uploadForm.categoryId"
+                :items="[
+                  { label: 'No category', value: null },
+                  ...categories.map(c => ({ label: c.name, value: c.id })),
+                ]"
+                placeholder="Select a category"
+                class="w-full"
+                value-key="value"
+              />
             </UFormField>
           </div>
 
