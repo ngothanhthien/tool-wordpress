@@ -7,11 +7,6 @@ import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
 import { CategoryRepository } from '~/repositories/supabase/category'
 
-// Type alias for table columns
-// Temporary: Use Partial to make category optional until Task 6 updates data fetching
-type ProductWithCategoryOptional = Omit<ProductWithCategory, 'category'> & { category?: ProductWithCategory['category'] }
-type ProductColumn = TableColumn<ProductWithCategoryOptional>
-
 definePageMeta({
   layout: 'default',
 })
@@ -77,8 +72,7 @@ const statusColors: Record<string, 'success' | 'error' | 'warning' | 'info' | 'n
 }
 
 // Define table columns
-// Note: Type cast needed until Task 6 updates data fetching to findAllWithCategory
-const columns = [
+const columns: TableColumn<ProductWithCategory>[] = [
   {
     accessorKey: 'seo_title',
     header: 'Title',
@@ -183,15 +177,16 @@ const columns = [
       })
     },
   },
-] as ProductColumn[]
+]
 
 // Use useAsyncData for data fetching with reactive dependencies
 const { data, pending, error, refresh } = await useAsyncData(
   'products',
   async () => {
     const repo = new ProductRepository(supabase)
-    const result = await repo.findAll({
+    const result = await repo.findAllWithCategory({
       status: statusFilter.value,
+      categoryId: categoryFilter.value,
     })
 
     return {
@@ -200,7 +195,7 @@ const { data, pending, error, refresh } = await useAsyncData(
     }
   },
   {
-    watch: [statusFilter],
+    watch: [statusFilter, categoryFilter],
   },
 )
 
