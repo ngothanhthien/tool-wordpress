@@ -280,6 +280,7 @@ function closeUploadModal() {
   isUploadModalOpen.value = false
   selectedProduct.value = null
   currentStep.value = 0
+  uploadForm.categoryId = null
 }
 
 // Go to next step
@@ -338,6 +339,7 @@ async function submitUpload() {
         keywords: uploadForm.keywords,
         images: imagesToUpload,
         price: uploadForm.price,
+        category_id: uploadForm.categoryId,
       },
     })
 
