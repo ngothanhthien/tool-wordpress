@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import type { Product } from '~/entities/Product.schema'
+import type { ProductWithCategory } from '~/entities/Product.schema'
+import type { Category } from '~/entities/Category.schema'
 import type { TableColumn } from '@nuxt/ui'
 import { getPaginationRowModel } from '@tanstack/table-core'
 import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
+import { CategoryRepository } from '~/repositories/supabase/category'
+
+// Type alias for table columns
+// Temporary: Use Partial to make category optional until Task 6 updates data fetching
+type ProductWithCategoryOptional = Omit<ProductWithCategory, 'category'> & { category?: ProductWithCategory['category'] }
+type ProductColumn = TableColumn<ProductWithCategoryOptional>
 
 definePageMeta({
   layout: 'default',
@@ -17,9 +24,11 @@ const toast = useToast()
 
 // State
 const globalFilter = ref('')
-const statusFilter = ref<Product['status'] | null>(null)
+const statusFilter = ref<ProductWithCategory['status'] | null>(null)
+const categoryFilter = ref<string | null>(null)
+const categories = ref<Category[]>([])
 const isUploadModalOpen = ref(false)
-const selectedProduct = ref<Product | null>(null)
+const selectedProduct = ref<ProductWithCategory | null>(null)
 const uploadLoading = ref(false)
 const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
@@ -68,13 +77,14 @@ const statusColors: Record<string, 'success' | 'error' | 'warning' | 'info' | 'n
 }
 
 // Define table columns
-const columns: TableColumn<Product>[] = [
+// Note: Type cast needed until Task 6 updates data fetching to findAllWithCategory
+const columns = [
   {
     accessorKey: 'seo_title',
     header: 'Title',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: any }) => {
       const title = row.getValue('seo_title') as string
-      const previewUrl = (row.original as Product).preview_url
+      const previewUrl = (row.original as ProductWithCategory).preview_url
 
       if (previewUrl) {
         return h('a', {
@@ -91,7 +101,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: any }) => {
       const status = row.getValue('status') as string
       const color = statusColors[status] || 'neutral'
       return h(UBadge, {
@@ -103,7 +113,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'images',
     header: 'Images',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: any }) => {
       const images = row.getValue('images') as string[]
       if (images.length === 0) {
         return h('span', { class: 'text-muted text-sm' }, 'No images')
@@ -123,7 +133,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'price',
     header: 'Price',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: any }) => {
       const price = row.getValue('price') as number | null
       if (price === null) {
         return h('span', { class: 'text-muted text-sm' }, 'N/A')
@@ -138,7 +148,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'created_at',
     header: 'Created',
-    cell: ({ row }) => {
+    cell: ({ row }: { row: any }) => {
       const date = row.getValue('created_at') as string
       const formatted = new Date(date).toLocaleDateString('vi-VN', {
         year: 'numeric',
@@ -156,8 +166,8 @@ const columns: TableColumn<Product>[] = [
         td: 'text-right'
       }
     },
-    cell: ({ row }) => {
-      const product = row.original
+    cell: ({ row }: { row: any }) => {
+      const product = row.original as ProductWithCategory
       const canUpload = product.status === ProductStatus.DRAFT || product.status === ProductStatus.FAILED
 
       if (!canUpload) {
@@ -173,7 +183,7 @@ const columns: TableColumn<Product>[] = [
       })
     },
   },
-]
+] as ProductColumn[]
 
 // Use useAsyncData for data fetching with reactive dependencies
 const { data, pending, error, refresh } = await useAsyncData(
@@ -194,6 +204,15 @@ const { data, pending, error, refresh } = await useAsyncData(
   },
 )
 
+// Fetch categories for filter
+const { data: categoriesData, error: categoriesError } = await useAsyncData(
+  'categories',
+  async () => {
+    const categoryRepo = new CategoryRepository(supabase)
+    return categoryRepo.findAll()
+  },
+)
+
 // Handle errors
 watchEffect(() => {
   if (error.value) {
@@ -206,6 +225,23 @@ watchEffect(() => {
   }
 })
 
+// Handle categories error
+watchEffect(() => {
+  if (categoriesError.value) {
+    console.error('Error fetching categories:', categoriesError.value)
+    toast.add({
+      title: 'Warning',
+      description: 'Failed to load categories',
+      color: 'warning',
+    })
+  }
+})
+
+// Set categories ref
+if (categoriesData.value) {
+  categories.value = categoriesData.value
+}
+
 // Format price
 function formatPrice(price: number | null) {
   if (price === null) return 'N/A'
@@ -216,7 +252,7 @@ function formatPrice(price: number | null) {
 }
 
 // Open upload modal
-function openUploadModal(product: Product) {
+function openUploadModal(product: ProductWithCategory) {
   selectedProduct.value = product
   uploadForm.seo_title = product.seo_title
   uploadForm.meta_description = product.meta_description
