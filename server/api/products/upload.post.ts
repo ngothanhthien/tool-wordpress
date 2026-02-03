@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
 
   // Get request body
   const body = await readBody(event)
-  const { productId, seo_title, meta_description, short_description, html_content, keywords, images, price } = body
+  const { productId, seo_title, meta_description, short_description, html_content, keywords, images, price, category_id } = body
 
   // Validate required fields
   if (!productId || !seo_title || !meta_description || !short_description || !html_content) {
@@ -40,6 +40,7 @@ export default defineEventHandler(async (event) => {
       keywords: keywords || [],
       images: images || [],
       price: price || null,
+      category_id: category_id || null,
       status: ProductStatus.PROCESSING,
       process_at: new Date().toISOString(),
       error_message: null,
