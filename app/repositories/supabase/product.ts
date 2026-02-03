@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Product, ProductInsert, ProductUpdate } from '~/entities/Product.schema'
+import type { Product, ProductInsert, ProductUpdate, ProductWithCategory } from '~/entities/Product.schema'
 
 export interface ProductListOptions {
   status?: 'draft' | 'processing' | 'success' | 'failed' | null
+  categoryId?: string | null
 }
 
 /**
@@ -28,6 +29,33 @@ export class ProductRepository {
     }
 
     return data as Product[]
+  }
+
+  async findAllWithCategory(options: ProductListOptions = {}): Promise<ProductWithCategory[]> {
+    let query = this.supabase
+      .from('products')
+      .select('*, category:categories(*)')
+      .order('created_at', { ascending: false })
+
+    if (options.status) {
+      query = query.eq('status', options.status)
+    }
+
+    if (options.categoryId === null) {
+      // Filter for uncategorized products only
+      query = query.is('category_id', null)
+    } else if (options.categoryId) {
+      // Filter for specific category
+      query = query.eq('category_id', options.categoryId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      throw new Error(`Failed to fetch products with category: ${error.message}`)
+    }
+
+    return data as ProductWithCategory[]
   }
 
   async findById(id: string): Promise<Product | null> {
