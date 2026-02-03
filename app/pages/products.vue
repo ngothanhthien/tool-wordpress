@@ -366,19 +366,32 @@ async function submitUpload() {
     <!-- Header & Filter -->
     <div class="w-full max-w-6xl flex items-center justify-between gap-4">
       <h1 class="text-2xl font-bold">Products</h1>
-      <USelect
-        v-model="statusFilter"
-        :items="[
-          { label: 'All', value: null },
-          { label: 'Draft', value: ProductStatus.DRAFT },
-          { label: 'Processing', value: ProductStatus.PROCESSING },
-          { label: 'Success', value: ProductStatus.SUCCESS },
-          { label: 'Failed', value: ProductStatus.FAILED },
-        ]"
-        placeholder="Filter by status"
-        class="w-48"
-        value-key="value"
-      />
+      <div class="flex items-center gap-2">
+        <USelect
+          v-model="categoryFilter"
+          :items="[
+            { label: 'All Categories', value: undefined },
+            { label: 'Uncategorized', value: null },
+            ...categories.map(c => ({ label: c.name, value: c.id })),
+          ]"
+          placeholder="Filter by category"
+          class="w-48"
+          value-key="value"
+        />
+        <USelect
+          v-model="statusFilter"
+          :items="[
+            { label: 'All', value: null },
+            { label: 'Draft', value: ProductStatus.DRAFT },
+            { label: 'Processing', value: ProductStatus.PROCESSING },
+            { label: 'Success', value: ProductStatus.SUCCESS },
+            { label: 'Failed', value: ProductStatus.FAILED },
+          ]"
+          placeholder="Filter by status"
+          class="w-48"
+          value-key="value"
+        />
+      </div>
     </div>
 
     <!-- Products Table Card -->
