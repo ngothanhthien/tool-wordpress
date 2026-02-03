@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { categorySchema } from './Category.schema'
 
 /**
  * Price reference data from external sources
@@ -68,3 +69,12 @@ export const productContentFormSchema = z.object({
 })
 
 export type ProductContentForm = z.output<typeof productContentFormSchema>
+
+/**
+ * Schema for product with joined category data
+ */
+export const productWithCategorySchema = productSchema.extend({
+  category: categorySchema.nullable().default(null),
+})
+
+export type ProductWithCategory = z.output<typeof productWithCategorySchema>
