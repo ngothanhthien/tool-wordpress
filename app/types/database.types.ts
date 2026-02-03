@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      categories: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          id: string
+          name: string
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       n8n_processes: {
         Row: {
           error_message: string | null
@@ -59,32 +80,37 @@ export type Database = {
           created_at: string | null
           error_message: string | null
           finished_at: string | null
+          has_confirmed: boolean | null
           html_content: string
           id: string
           images: string[] | null
           keywords: string[] | null
           made_by_process_id: string | null
+          meta_description: string
+          preview_url: string | null
           price: number | null
           price_reference: Json | null
-          meta_description: string
           process_at: string | null
           process_id: string | null
           seo_title: string
           short_description: string
           status: string
           updated_at: string | null
+          woo_id: number | null
           workflow_id: string | null
         }
         Insert: {
           created_at?: string | null
           error_message?: string | null
           finished_at?: string | null
+          has_confirmed?: boolean | null
           html_content: string
           id?: string
           images?: string[] | null
           keywords?: string[] | null
           made_by_process_id?: string | null
           meta_description: string
+          preview_url?: string | null
           price?: number | null
           price_reference?: Json | null
           process_at?: string | null
@@ -93,18 +119,21 @@ export type Database = {
           short_description: string
           status?: string
           updated_at?: string | null
+          woo_id?: number | null
           workflow_id?: string | null
         }
         Update: {
           created_at?: string | null
           error_message?: string | null
           finished_at?: string | null
+          has_confirmed?: boolean | null
           html_content?: string
           id?: string
           images?: string[] | null
           keywords?: string[] | null
           made_by_process_id?: string | null
           meta_description?: string
+          preview_url?: string | null
           price?: number | null
           price_reference?: Json | null
           process_at?: string | null
@@ -113,6 +142,7 @@ export type Database = {
           short_description?: string
           status?: string
           updated_at?: string | null
+          woo_id?: number | null
           workflow_id?: string | null
         }
         Relationships: []

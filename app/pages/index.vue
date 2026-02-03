@@ -273,9 +273,9 @@ function closeDetailModal() {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
+  <div class="flex flex-col items-center gap-4 p-4 h-screen overflow-hidden">
+    <!-- Header & Actions -->
+    <div class="w-full max-w-6xl flex items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold">
           Prepare Data Workflow
@@ -303,7 +303,7 @@ function closeDetailModal() {
     </div>
 
     <!-- Filters -->
-    <div class="flex items-center gap-4">
+    <div class="w-full max-w-6xl flex items-center gap-4">
       <UInput
         v-model="globalFilter"
         icon="i-lucide-search"
@@ -326,36 +326,38 @@ function closeDetailModal() {
       />
     </div>
 
-    <!-- Table -->
-    <UTable
-      :data="data?.processes ?? []"
-      :columns="columns"
-      :loading="pending"
-      :pagination="pagination"
-      :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
-      :global-filter="globalFilter"
-      class="flex-1 border rounded-lg"
-    >
-      <template #empty>
-        <div class="py-8 text-center text-muted">
-          <p class="text-lg font-medium">No processes found</p>
-          <p class="text-sm">Try adjusting your search or filters</p>
-        </div>
-      </template>
-    </UTable>
+    <!-- Table Card -->
+    <UPageCard class="w-full max-w-6xl flex-1 overflow-auto flex flex-col">
+      <UTable
+        :data="data?.processes ?? []"
+        :columns="columns"
+        :loading="pending"
+        :pagination="pagination"
+        :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
+        :global-filter="globalFilter"
+        class="flex-1"
+      >
+        <template #empty>
+          <div class="py-8 text-center text-muted">
+            <p class="text-lg font-medium">No processes found</p>
+            <p class="text-sm">Try adjusting your search or filters</p>
+          </div>
+        </template>
+      </UTable>
 
-    <!-- Pagination -->
-    <div v-if="data?.total" class="flex items-center justify-between border-t pt-4">
-      <p class="text-sm text-muted">
-        Showing {{ (pagination.pageIndex * pagination.pageSize) + 1 }}-{{ Math.min((pagination.pageIndex + 1) * pagination.pageSize, data.total) }} of {{ data.total }} processes
-      </p>
-      <UPagination
-        :page="pagination.pageIndex + 1"
-        :items-per-page="pagination.pageSize"
-        :total="data?.total ?? 0"
-        @update:page="(p) => pagination.pageIndex = p - 1"
-      />
-    </div>
+      <!-- Pagination -->
+      <div v-if="data?.total" class="flex items-center justify-between border-t pt-4">
+        <p class="text-sm text-muted">
+          Showing {{ (pagination.pageIndex * pagination.pageSize) + 1 }}-{{ Math.min((pagination.pageIndex + 1) * pagination.pageSize, data.total) }} of {{ data.total }} processes
+        </p>
+        <UPagination
+          :page="pagination.pageIndex + 1"
+          :items-per-page="pagination.pageSize"
+          :total="data?.total ?? 0"
+          @update:page="(p) => pagination.pageIndex = p - 1"
+        />
+      </div>
+    </UPageCard>
 
     <!-- Create Product Modal -->
     <UModal

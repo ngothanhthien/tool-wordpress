@@ -26,6 +26,7 @@ export const productSchema = z.object({
   price: z.number().int().nonnegative().nullable().default(null),
   price_reference: priceReferenceSchema.nullable().default(null),
   woo_id: z.number().int().nonnegative().nullable().default(null),
+  category_id: z.string().nullable().default(null),
   made_by_process_id: z.uuid().nullable().default(null),
   status: z.enum(['draft', 'processing', 'success', 'failed']).default('draft'),
   error_message: z.string().nullable().default(null),

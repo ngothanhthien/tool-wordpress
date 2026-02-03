@@ -320,9 +320,9 @@ async function submitUpload() {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <!-- Header -->
-    <div class="mb-6 flex items-center justify-between">
+  <div class="flex flex-col items-center gap-4 p-4 h-screen overflow-hidden">
+    <!-- Header & Filter -->
+    <div class="w-full max-w-6xl flex items-center justify-between gap-4">
       <h1 class="text-2xl font-bold">Products</h1>
       <USelect
         v-model="statusFilter"
@@ -339,20 +339,22 @@ async function submitUpload() {
       />
     </div>
 
-    <!-- Products Table -->
-    <UTable
-      :data="data?.products ?? []"
-      :columns="columns"
-      :loading="pending"
-      :global-filter="globalFilter"
-      class="border rounded-lg"
-    >
-      <template #empty>
-        <div class="py-8 text-center text-muted">
-          <p class="text-lg font-medium">No products found</p>
-        </div>
-      </template>
-    </UTable>
+    <!-- Products Table Card -->
+    <UPageCard class="w-full max-w-6xl flex-1 overflow-auto">
+      <UTable
+        :data="data?.products ?? []"
+        :columns="columns"
+        :loading="pending"
+        :global-filter="globalFilter"
+        class="flex-1"
+      >
+        <template #empty>
+          <div class="py-8 text-center text-muted">
+            <p class="text-lg font-medium">No products found</p>
+          </div>
+        </template>
+      </UTable>
+    </UPageCard>
 
     <!-- Upload Modal -->
     <UModal

@@ -24,3 +24,10 @@ logs
 !.env.example
 .claude
 .agents
+.beads
+plan_common_task
+plan_to_beads
+
+# bv (beads viewer) local config and caches
+.bv/
+.mcp.json

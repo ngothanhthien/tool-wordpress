@@ -1,18 +1,79 @@
 {
   "mcpServers": {
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "env": {}
+    },
+    "Context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "env": {}
+    },
+    "zai-mcp-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@z_ai/mcp-server",
+        "--env",
+        "Z_AI_API_KEY=a03f134de60947f9b2dd6989918ddf5d.jzdxocwGVqBN5pf5",
+        "--env",
+        "Z_AI_MODE=ZAI"
+      ],
+      "env": {}
+    },
+    "web-search-prime": {
+      "type": "http",
+      "url": "https://api.z.ai/api/mcp/web_search_prime/mcp",
+      "headers": {
+        "Authorization": "Bearer a03f134de60947f9b2dd6989918ddf5d.jzdxocwGVqBN5pf5"
+      }
+    },
+    "web-reader": {
+      "type": "http",
+      "url": "https://api.z.ai/api/mcp/web_reader/mcp",
+      "headers": {
+        "Authorization": "Bearer a03f134de60947f9b2dd6989918ddf5d.jzdxocwGVqBN5pf5"
+      }
+    },
+    "zread": {
+      "type": "http",
+      "url": "https://api.z.ai/api/mcp/zread/mcp",
+      "headers": {
+        "Authorization": "Bearer a03f134de60947f9b2dd6989918ddf5d.jzdxocwGVqBN5pf5"
+      }
+    },
+    "nuxt-ui": {
+      "type": "http",
+      "url": "https://ui.nuxt.com/mcp"
+    },
+    "gkg": {
+      "type": "sse",
+      "url": "http://localhost:27495/mcp/sse"
+    },
     "supabase": {
       "type": "http",
       "url": "http://localhost:8000/mcp"
     },
-    "n8n-mcp": {
+    "morph-mcp": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["n8n-mcp"],
+      "args": [
+        "-y",
+        "@morphllm/morphmcp"
+      ],
       "env": {
-        "MCP_MODE": "stdio",
-        "LOG_LEVEL": "error",
-        "DISABLE_CONSOLE_OUTPUT": "true",
-        "N8N_API_URL": "https://n8n.thiennt.app",
-        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNWQ4Y2FmYi0zMTZkLTQ5OTEtYWQ4Yi1lNjYzZDQ0YzcxYjkiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzY5MTQ0MjQyfQ.VrQqVe-ggedzn6_QnkTrwd_tstlBrFq69AH83v3wK2U"
+        "MORPH_API_KEY": "sk-5DqDlKia-nM6wGWyng2kv9PXAzdB8qsXgFENW4mOSyS3te98",
+        "ENABLED_TOOLS": "edit_file,warpgrep_codebase_search"
       }
     }
   }
