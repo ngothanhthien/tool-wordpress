@@ -341,12 +341,6 @@ function closeUploadModal() {
   uploadingFiles.value = []
   uploadProgress.value = []
   variantAttributes.value = []
-  // Reset watermark state
-  isWatermarking.value = false
-  watermarkProgress.value = 0
-  watermarkStatus.value = 'idle'
-  watermarkErrors.value = []
-  isWatermarkErrorModalOpen.value = false
 }
 
 // Remove category from selection (handles Category objects and ID strings)
@@ -935,29 +929,6 @@ async function fetchVariantAttributes() {
     variantAttributes.value = []
   } finally {
     isFetchingVariants.value = false
-  }
-}
-
-// Add a new variant
-function addVariant() {
-  variants.value.push({
-    id: `variant-${Date.now()}-${Math.random()}`,
-    name: '',
-    price: uploadForm.price || 0,
-  })
-}
-
-// Delete a variant
-function deleteVariant(id: string) {
-  const index = variants.value.findIndex(v => v.id === id)
-  if (index > -1) {
-    variants.value.splice(index, 1)
-    toast.add({
-      title: 'Variant Removed',
-      description: 'Variant removed from list',
-      color: 'neutral',
-      icon: 'i-heroicons-trash',
-    })
   }
 }
 
