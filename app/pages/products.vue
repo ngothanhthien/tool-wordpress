@@ -380,11 +380,22 @@ function getCategoryDisplayName(category: Category | string): string {
 
 // Go to next step
 async function nextStep() {
-  if (currentStep.value < stepperItems.length - 1) {
-    // Fetch variants when moving from Categories (2) to Variants (3)
-    if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-      await fetchVariantAttributes()
+  // Trigger watermarking when leaving Media tab (step 1)
+  if (currentStep.value === 1) {
+    const needsWatermark = allImages.value.some(img => !img.watermarked)
+
+    if (needsWatermark) {
+      // Start background watermarking (non-blocking)
+      startWatermarking() // Don't await - let it run in background
     }
+  }
+
+  // Fetch variants when moving from Categories (2) to Variants (3)
+  if (currentStep.value === 2 && selectedCategories.value.length > 0) {
+    await fetchVariantAttributes()
+  }
+
+  if (currentStep.value < stepperItems.length - 1) {
     currentStep.value++
   }
 }
