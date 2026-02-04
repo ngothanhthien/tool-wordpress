@@ -460,27 +460,63 @@ async function submitUpload() {
     return
   }
 
-  // Validate variants
-  const validVariants = variants.value.filter(v => v.name.trim() !== '')
-  for (const variant of validVariants) {
-    if (!variant.name || variant.name.trim() === '') {
+  // Validate and flatten variant attributes
+  const validVariants: { name: string; price: number }[] = []
+
+  for (const attr of variantAttributes.value) {
+    // Validate attribute name
+    if (!attr.name || attr.name.trim() === '') {
       toast.add({
         title: 'Validation Error',
-        description: 'Variant name cannot be empty',
+        description: 'Attribute name cannot be empty',
         color: 'error',
         icon: 'i-heroicons-exclamation-triangle',
       })
       return
     }
-    if (!variant.price || variant.price <= 0) {
-      toast.add({
-        title: 'Validation Error',
-        description: `Invalid price for variant: ${variant.name}`,
-        color: 'error',
-        icon: 'i-heroicons-exclamation-triangle',
-      })
-      return
+
+    for (const val of attr.values) {
+      // Skip unselected values
+      if (!val.selected) {
+        continue
+      }
+
+      // Validate value name
+      if (!val.name || val.name.trim() === '') {
+        toast.add({
+          title: 'Validation Error',
+          description: `Variant value name cannot be empty in attribute: ${attr.name}`,
+          color: 'error',
+          icon: 'i-heroicons-exclamation-triangle',
+        })
+        return
+      }
+
+      // Validate price
+      if (typeof val.price !== 'number' || val.price < 0) {
+        toast.add({
+          title: 'Validation Error',
+          description: `Invalid price for variant: ${val.name}`,
+          color: 'error',
+          icon: 'i-heroicons-exclamation-triangle',
+        })
+        return
+      }
+
+      // Add to flattened list
+      validVariants.push({ name: val.name, price: val.price })
     }
+  }
+
+  // Require at least one selected variant value
+  if (validVariants.length === 0) {
+    toast.add({
+      title: 'Validation Error',
+      description: 'At least one variant value must be selected',
+      color: 'error',
+      icon: 'i-heroicons-exclamation-triangle',
+    })
+    return
   }
 
   uploadLoading.value = true
@@ -500,7 +536,7 @@ async function submitUpload() {
         images: imagesToUpload,
         price: uploadForm.price,
         categories: selectedCategories.value,
-        variants: validVariants.map(v => ({ name: v.name, price: v.price })),
+        variants: validVariants,
       },
     })
 
