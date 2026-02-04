@@ -11,6 +11,7 @@ interface ImageItem {
   id: string           // Unique ID for drag tracking (e.g., 'existing-1736025600-0')
   src: string          // Image URL
   isExisting: boolean  // Track source for reference (not logic)
+  watermarked: boolean // Track watermark status
 }
 
 // Variant attribute value type
@@ -49,6 +50,11 @@ const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
 const isFetchingVariants = ref(false)
+const isWatermarking = ref(false)
+const watermarkProgress = ref(0)
+const watermarkStatus = ref<'idle' | 'processing' | 'completed' | 'failed'>('idle')
+const watermarkErrors = ref<string[]>([])
+const isWatermarkErrorModalOpen = ref(false)
 
 // Variant attributes state (for attribute-based variant grouping)
 const variantAttributes = ref<VariantAttribute[]>([])
@@ -310,7 +316,8 @@ function openUploadModal(product: Product) {
   allImages.value = product.images.map((src, i) => ({
     id: `existing-${Date.now()}-${i}`,
     src,
-    isExisting: true
+    isExisting: true,
+    watermarked: false
   }))
   newImages.value = []
   selectedFiles.value = []
@@ -400,13 +407,6 @@ function openImagePreview(image: string) {
 // Delete image from the list
 function deleteImage(index: number) {
   allImages.value.splice(index, 1)
-
-  toast.add({
-    title: 'Image Removed',
-    description: 'Image removed from upload list',
-    color: 'neutral',
-    icon: 'i-heroicons-trash',
-  })
 }
 
 // Auto-delete on image load error
@@ -699,7 +699,8 @@ async function uploadFiles(files: File[]) {
         allImages.value.push({
           id: `new-${Date.now()}-${Math.random()}`,
           src: url,
-          isExisting: false
+          isExisting: false,
+          watermarked: false
         })
         toast.add({
           title: 'Upload Complete',
