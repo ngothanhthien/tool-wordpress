@@ -35,6 +35,16 @@ const uploadLoading = ref(false)
 const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
+const isFetchingVariants = ref(false)
+
+// Variant state
+interface ProductVariant {
+  id: string
+  name: string
+  price: number
+}
+
+const variants = ref<ProductVariant[]>([])
 
 // Stepper items
 const stepperItems = [
@@ -55,6 +65,12 @@ const stepperItems = [
     description: 'Select categories and set price',
     icon: 'i-heroicons-tag',
     value: 2,
+  },
+  {
+    title: 'Variants',
+    description: 'Configure product variants',
+    icon: 'i-heroicons-swatch',
+    value: 3,
   },
 ]
 
@@ -310,6 +326,7 @@ function closeUploadModal() {
   selectedFiles.value = []
   uploadingFiles.value = []
   uploadProgress.value = []
+  variants.value = []
 }
 
 // Remove category from selection (handles Category objects and ID strings)
@@ -348,8 +365,12 @@ function getCategoryDisplayName(category: Category | string): string {
 }
 
 // Go to next step
-function nextStep() {
+async function nextStep() {
   if (currentStep.value < stepperItems.length - 1) {
+    // Fetch variants when moving from Categories (2) to Variants (3)
+    if (currentStep.value === 2 && selectedCategories.value.length > 0) {
+      await fetchVariants()
+    }
     currentStep.value++
   }
 }
@@ -422,6 +443,29 @@ async function submitUpload() {
     return
   }
 
+  // Validate variants
+  const validVariants = variants.value.filter(v => v.name.trim() !== '')
+  for (const variant of validVariants) {
+    if (!variant.name || variant.name.trim() === '') {
+      toast.add({
+        title: 'Validation Error',
+        description: 'Variant name cannot be empty',
+        color: 'error',
+        icon: 'i-heroicons-exclamation-triangle',
+      })
+      return
+    }
+    if (!variant.price || variant.price <= 0) {
+      toast.add({
+        title: 'Validation Error',
+        description: `Invalid price for variant: ${variant.name}`,
+        color: 'error',
+        icon: 'i-heroicons-exclamation-triangle',
+      })
+      return
+    }
+  }
+
   uploadLoading.value = true
   try {
     // Use the reordered image list directly
@@ -439,6 +483,7 @@ async function submitUpload() {
         images: imagesToUpload,
         price: uploadForm.price,
         categories: selectedCategories.value,
+        variants: validVariants.map(v => ({ name: v.name, price: v.price })),
       },
     })
 
@@ -654,6 +699,76 @@ async function uploadFiles(files: File[]) {
   }
 }
 
+// ========== Variant Management Functions ==========
+
+// Fetch suggested variants from WooCommerce
+async function fetchVariants() {
+  if (selectedCategories.value.length === 0) {
+    return
+  }
+
+  isFetchingVariants.value = true
+  try {
+    const categoryIds = selectedCategories.value.map(c => Number(c.id))
+    const response = await $fetch('/api/woocommerce/suggested-variants', {
+      method: 'POST',
+      body: { categoryIds },
+    })
+
+    if (response && typeof response === 'object' && 'variants' in response) {
+      const data = response as { variants: Array<{ name: string; price: number }> }
+      variants.value = data.variants.map(v => ({
+        id: `variant-${Date.now()}-${Math.random()}`,
+        name: v.name,
+        price: v.price,
+      }))
+
+      if (variants.value.length > 0) {
+        toast.add({
+          title: 'Variants Found',
+          description: `Found ${variants.value.length} variants from WooCommerce`,
+          color: 'success',
+          icon: 'i-heroicons-check-circle',
+        })
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching variants:', error)
+    toast.add({
+      title: 'Could not fetch variants',
+      description: 'You can still add variants manually',
+      color: 'warning',
+      icon: 'i-heroicons-exclamation-triangle',
+    })
+    variants.value = []
+  } finally {
+    isFetchingVariants.value = false
+  }
+}
+
+// Add a new variant
+function addVariant() {
+  variants.value.push({
+    id: `variant-${Date.now()}-${Math.random()}`,
+    name: '',
+    price: uploadForm.price || 0,
+  })
+}
+
+// Delete a variant
+function deleteVariant(id: string) {
+  const index = variants.value.findIndex(v => v.id === id)
+  if (index > -1) {
+    variants.value.splice(index, 1)
+    toast.add({
+      title: 'Variant Removed',
+      description: 'Variant removed from list',
+      color: 'neutral',
+      icon: 'i-heroicons-trash',
+    })
+  }
+}
+
 // Watch for file selection changes and auto-upload
 watch(selectedFiles, (newFiles) => {
   if (newFiles?.length) {
@@ -795,6 +910,99 @@ watch(selectedFiles, (newFiles) => {
                 </UBadge>
               </div>
             </UFormField>
+          </div>
+
+          <!-- Step 3: Variants -->
+          <div v-show="currentStep === 3" class="space-y-4">
+            <!-- Loading state -->
+            <div v-if="isFetchingVariants" class="flex items-center justify-center py-8">
+              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary" />
+              <span class="ml-2">Fetching variants from WooCommerce...</span>
+            </div>
+
+            <!-- Empty state -->
+            <div v-else-if="variants.length === 0" class="text-center py-8 border-2 border-dashed rounded-lg">
+              <UIcon name="i-heroicons-swatch" class="w-12 h-12 mx-auto text-muted mb-2" />
+              <p class="text-muted">No variants found</p>
+              <p class="text-sm text-muted-foreground mb-4">Add variants manually to create a variable product</p>
+              <UButton
+                icon="i-heroicons-plus"
+                size="sm"
+                @click="addVariant"
+              >
+                Add Variant
+              </UButton>
+            </div>
+
+            <!-- Variants list -->
+            <div v-else class="space-y-4">
+              <!-- Header with add button -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-sm font-medium">Product Variants</h3>
+                  <p class="text-xs text-muted">Suggested from WooCommerce ({{ variants.length }} found)</p>
+                </div>
+                <UButton
+                  icon="i-heroicons-plus"
+                  size="sm"
+                  @click="addVariant"
+                >
+                  Add Variant
+                </UButton>
+              </div>
+
+              <!-- Variants table -->
+              <div class="border rounded-lg overflow-hidden">
+                <table class="w-full">
+                  <thead class="bg-muted/50">
+                    <tr>
+                      <th class="text-left text-sm font-medium p-3">Variant Name</th>
+                      <th class="text-left text-sm font-medium p-3">Price (VND)</th>
+                      <th class="text-right text-sm font-medium p-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(variant, index) in variants"
+                      :key="variant.id"
+                      class="border-t"
+                    >
+                      <td class="p-3">
+                        <UInput
+                          v-model="variant.name"
+                          placeholder="Enter variant name"
+                          size="sm"
+                        />
+                      </td>
+                      <td class="p-3">
+                        <UInputNumber
+                          v-model="variant.price"
+                          placeholder="Price"
+                          size="sm"
+                          :increment="false"
+                          :decrement="false"
+                          class="w-full"
+                        />
+                      </td>
+                      <td class="p-3 text-right">
+                        <UButton
+                          icon="i-heroicons-trash"
+                          size="xs"
+                          color="error"
+                          variant="ghost"
+                          @click="deleteVariant(variant.id)"
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Total count -->
+              <p class="text-xs text-muted text-right">
+                Total variants: {{ variants.filter(v => v.name.trim()).length }}
+              </p>
+            </div>
           </div>
 
           <!-- Step 1: Media -->
