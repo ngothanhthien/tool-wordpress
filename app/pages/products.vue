@@ -13,6 +13,18 @@ interface ImageItem {
   isExisting: boolean  // Track source for reference (not logic)
 }
 
+// Variant attribute types for grouped display
+interface VariantAttributeValue {
+  name: string        // e.g., "Red", "M"
+  price: number
+  selected: boolean
+}
+
+interface VariantAttribute {
+  name: string        // e.g., "Color", "Size"
+  values: VariantAttributeValue[]
+}
+
 definePageMeta({
   layout: 'default',
 })
@@ -36,15 +48,10 @@ const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
 const isFetchingVariants = ref(false)
+const isNavigatingToVariants = ref(false)
 
-// Variant state
-interface ProductVariant {
-  id: string
-  name: string
-  price: number
-}
-
-const variants = ref<ProductVariant[]>([])
+// Variant state - grouped by attribute
+const variantAttributes = ref<VariantAttribute[]>([])
 
 // Stepper items
 const stepperItems = [
@@ -369,7 +376,12 @@ async function nextStep() {
   if (currentStep.value < stepperItems.length - 1) {
     // Fetch variants when moving from Categories (2) to Variants (3)
     if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-      await fetchVariants()
+      isNavigatingToVariants.value = true
+      try {
+        await fetchVariants()
+      } finally {
+        isNavigatingToVariants.value = false
+      }
     }
     currentStep.value++
   }
@@ -393,13 +405,6 @@ function openImagePreview(image: string) {
 // Delete image from the list
 function deleteImage(index: number) {
   allImages.value.splice(index, 1)
-
-  toast.add({
-    title: 'Image Removed',
-    description: 'Image removed from upload list',
-    color: 'neutral',
-    icon: 'i-heroicons-trash',
-  })
 }
 
 // Auto-delete on image load error
@@ -407,13 +412,6 @@ function onImageLoadError(src: string) {
   const index = allImages.value.findIndex(img => img.src === src)
   if (index > -1) {
     allImages.value.splice(index, 1)
-
-    toast.add({
-      title: 'Image Removed',
-      description: 'Failed to load image, automatically removed from list',
-      color: 'warning',
-      icon: 'i-heroicons-exclamation-triangle',
-    })
   }
 }
 
@@ -1134,6 +1132,8 @@ watch(selectedFiles, (newFiles) => {
         <UButton
           v-if="currentStep < stepperItems.length - 1"
           label="Next"
+          :loading="isNavigatingToVariants"
+          :disabled="isNavigatingToVariants"
           @click="nextStep"
         />
         <UButton
