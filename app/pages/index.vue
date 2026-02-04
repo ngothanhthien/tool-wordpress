@@ -204,7 +204,12 @@ function handleRefresh() {
 
 // Handle create product submission
 async function handleSubmit() {
-  if (!productLinks.value.trim()) {
+  const urls = productLinks.value
+    .split('\n')
+    .map(url => url.trim())
+    .filter(url => url.length > 0)
+
+  if (urls.length === 0) {
     toast.add({
       title: 'Validation Error',
       description: 'Please enter at least one product link',
@@ -219,7 +224,7 @@ async function handleSubmit() {
     const response = await $fetch('/api/generate-product', {
       method: 'POST',
       body: {
-        chatInput: productLinks.value.trim(),
+        urls,
       },
     })
 

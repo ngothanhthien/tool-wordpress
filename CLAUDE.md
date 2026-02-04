@@ -153,3 +153,22 @@ git push                # Push to remote
 - Always `bd sync` before ending session
 
 <!-- end-bv-agent-instructions -->
+
+
+
+"categories":
+[{
+"id":"629",
+"name":"Nước Tẩy Trang",
+"slug":"nuoc-tay-trang"
+},
+{
+"id":"716",
+"name":"Tẩy trang",
+"slug":"tay-trang"
+},
+{
+"id":"238",
+"name":"Shiseido",
+"slug":"shiseido"
+}]

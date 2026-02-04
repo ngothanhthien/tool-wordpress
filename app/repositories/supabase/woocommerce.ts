@@ -98,9 +98,10 @@ export class WooCommerceRepository {
   /**
    * Upload product to WooCommerce via REST API
    * @param product - Product entity to upload
+   * @param categories - Array of categories to assign (each has id, name, slug)
    * @returns Object with WooCommerce product ID and preview URL
    */
-  async uploadProduct(product: Product): Promise<{ wooCommerceId: number; previewUrl: string }> {
+  async uploadProduct(product: Product, categories?: Array<{ id: string; name: string; slug: string }>): Promise<{ wooCommerceId: number; previewUrl: string }> {
     const config = this.getConfig()
 
     const payload = {
@@ -111,6 +112,7 @@ export class WooCommerceRepository {
       short_description: product.short_description,
       regular_price: product.price ? String(product.price) : '',
       images: product.images.map((src, index) => ({ src, position: index })),
+      categories: categories?.map(cat => ({ id: Number.parseInt(cat.id, 10) })) || [],
       meta_data: [
         { key: '_yoast_wpseo_metadesc', value: product.meta_description },
         { key: '_yoast_wpseo_focuskw', value: product.keywords.join(', ') },

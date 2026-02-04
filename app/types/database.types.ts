@@ -77,7 +77,6 @@ export type Database = {
       }
       products: {
         Row: {
-          category_id: string | null
           created_at: string | null
           error_message: string | null
           finished_at: string | null
@@ -93,6 +92,7 @@ export type Database = {
           price_reference: Json | null
           process_at: string | null
           process_id: string | null
+          raw_categories: Json | null
           seo_title: string
           short_description: string
           status: string
@@ -101,7 +101,6 @@ export type Database = {
           workflow_id: string | null
         }
         Insert: {
-          category_id?: string | null
           created_at?: string | null
           error_message?: string | null
           finished_at?: string | null
@@ -117,6 +116,7 @@ export type Database = {
           price_reference?: Json | null
           process_at?: string | null
           process_id?: string | null
+          raw_categories?: Json | null
           seo_title: string
           short_description: string
           status?: string
@@ -125,7 +125,6 @@ export type Database = {
           workflow_id?: string | null
         }
         Update: {
-          category_id?: string | null
           created_at?: string | null
           error_message?: string | null
           finished_at?: string | null
@@ -141,6 +140,7 @@ export type Database = {
           price_reference?: Json | null
           process_at?: string | null
           process_id?: string | null
+          raw_categories?: Json | null
           seo_title?: string
           short_description?: string
           status?: string
@@ -148,15 +148,7 @@ export type Database = {
           woo_id?: number | null
           workflow_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "products_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

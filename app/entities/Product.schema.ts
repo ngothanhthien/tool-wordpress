@@ -27,7 +27,11 @@ export const productSchema = z.object({
   price: z.number().int().nonnegative().nullable().default(null),
   price_reference: priceReferenceSchema.nullable().default(null),
   woo_id: z.number().int().nonnegative().nullable().default(null),
-  category_id: z.string().nullable().default(null),
+  raw_categories: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+  })).default([]),
   made_by_process_id: z.uuid().nullable().default(null),
   status: z.enum(['draft', 'processing', 'success', 'failed']).default('draft'),
   error_message: z.string().nullable().default(null),
@@ -72,6 +76,7 @@ export type ProductContentForm = z.output<typeof productContentFormSchema>
 
 /**
  * Schema for product with joined category data
+ * @deprecated - raw_categories now contains multiple categories
  */
 export const productWithCategorySchema = productSchema.extend({
   category: categorySchema.nullable().default(null),

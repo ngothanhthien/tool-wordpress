@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
 
   // Get request body
   const body = await readBody(event)
-  const { productId, seo_title, meta_description, short_description, html_content, keywords, images, price, category_id } = body
+  const { productId, seo_title, meta_description, short_description, html_content, keywords, images, price, categories } = body
 
   // Validate required fields
   if (!productId || !seo_title || !meta_description || !short_description || !html_content) {
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
       keywords: keywords || [],
       images: images || [],
       price: price || null,
-      category_id: category_id || null,
+      raw_categories: categories || [],
       status: ProductStatus.PROCESSING,
       process_at: new Date().toISOString(),
       error_message: null,
@@ -48,9 +48,9 @@ export default defineEventHandler(async (event) => {
       has_confirmed: true,
     })
 
-    // Upload to WooCommerce
+    // Upload to WooCommerce with categories
     const wooRepo = new WooCommerceRepository()
-    const { wooCommerceId, previewUrl } = await wooRepo.uploadProduct(updatedProduct)
+    const { wooCommerceId, previewUrl } = await wooRepo.uploadProduct(updatedProduct, categories)
 
     // Update product with WooCommerce data and mark as success
     const finalProduct = await productRepo.update(productId, {

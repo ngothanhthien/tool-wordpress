@@ -19,7 +19,7 @@ export default defineEventHandler(async (event): Promise<ApiResponse<N8NProcess 
   try {
     const id = crypto.randomUUID()
 
-    const response = await $fetch('https://n8n.thiennt.app/webhook/generate/product', {
+    const response = await $fetch('https://n8n.thiennt.app/webhook-test/generate/product', {
       method: 'POST',
       headers: {
         'x-api-key': process.env.N8N_API_KEY || '',
