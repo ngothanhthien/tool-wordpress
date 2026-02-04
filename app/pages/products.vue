@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { Product } from '~/entities/Product.schema'
 import type { Category } from '~/entities/Category.schema'
-import type { TableColumn } from '@nuxt/ui'
-import { getPaginationRowModel } from '@tanstack/table-core'
+import type { TableColumn, Row } from '@nuxt/ui'
 import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
 import { CategoryRepository } from '~/repositories/supabase/category'
@@ -51,11 +50,6 @@ const stepperItems = [
   },
 ]
 
-const pagination = ref({
-  pageIndex: 0,
-  pageSize: 10,
-})
-
 // Form state for upload dialog
 const uploadForm = reactive({
   seo_title: '',
@@ -82,7 +76,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'seo_title',
     header: 'Title',
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const title = row.getValue('seo_title') as string
       const previewUrl = (row.original as Product).preview_url
 
@@ -101,7 +95,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const status = row.getValue('status') as string
       const color = statusColors[status] || 'neutral'
       return h(UBadge, {
@@ -113,12 +107,12 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'raw_categories',
     header: 'Categories',
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const rawCategories = (row.original as Product).raw_categories || []
       if (rawCategories.length === 0) {
         return h('span', { class: 'text-muted text-sm' }, 'No categories')
       }
-      const names = rawCategories.map((c: any) => c.name).slice(0, 2)
+      const names = rawCategories.map((c: { name: string }) => c.name).slice(0, 2)
       const display = names.join(', ')
       const remaining = rawCategories.length > 2 ? ` +${rawCategories.length - 2}` : ''
       return h('span', { class: 'text-sm' }, display + remaining)
@@ -127,7 +121,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'images',
     header: 'Images',
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const images = row.getValue('images') as string[]
       if (images.length === 0) {
         return h('span', { class: 'text-muted text-sm' }, 'No images')
@@ -147,7 +141,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'price',
     header: 'Price',
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const price = row.getValue('price') as number | null
       if (price === null) {
         return h('span', { class: 'text-muted text-sm' }, 'N/A')
@@ -162,7 +156,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'created_at',
     header: 'Created',
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const date = row.getValue('created_at') as string
       const formatted = new Date(date).toLocaleDateString('vi-VN', {
         year: 'numeric',
@@ -180,7 +174,7 @@ const columns: TableColumn<Product>[] = [
         td: 'text-right'
       }
     },
-    cell: ({ row }: { row: any }) => {
+    cell: ({ row }: { row: Row<Product> }) => {
       const product = row.original as Product
       const canUpload = product.status === ProductStatus.DRAFT || product.status === ProductStatus.FAILED
 
@@ -254,15 +248,6 @@ watchEffect(() => {
 // Set categories ref
 if (categoriesData.value) {
   categories.value = categoriesData.value
-}
-
-// Format price
-function formatPrice(price: number | null) {
-  if (price === null) return 'N/A'
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
-  }).format(price)
 }
 
 // Open upload modal
@@ -424,7 +409,7 @@ async function submitUpload() {
       <template #body>
         <div v-if="selectedProduct" class="space-y-6">
           <!-- Stepper -->
-          <UStepper :items="stepperItems" v-model="currentStep" />
+          <UStepper v-model="currentStep" :items="stepperItems" />
 
           <!-- Step 0: Content -->
           <div v-show="currentStep === 0" class="space-y-4">
@@ -460,8 +445,8 @@ async function submitUpload() {
             <UFormField label="Categories">
               <USelectMenu
                 v-model="selectedCategories"
-                :items="categories as any"
                 multiple
+                :items="categories as any"
                 create-item
                 placeholder="Search categories or add new..."
                 value-key="id"
@@ -505,7 +490,7 @@ async function submitUpload() {
                       :alt="`Image ${index + 1}`"
                       class="w-full object-cover rounded hover:opacity-80 transition-opacity"
                       @error="onImageError(index)"
-                    />
+                    >
                   </div>
                 </div>
               </div>
@@ -553,7 +538,7 @@ async function submitUpload() {
     >
       <template #body>
         <div class="flex justify-center items-center">
-          <img :src="previewImage" alt="Full size preview" class="max-w-full max-h-[70vh] object-contain rounded" />
+          <img :src="previewImage" alt="Full size preview" class="max-w-full max-h-[70vh] object-contain rounded">
         </div>
       </template>
 
