@@ -6,6 +6,13 @@ import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
 import { CategoryRepository } from '~/repositories/supabase/category'
 
+// Image item type for unified drag-and-drop list
+interface ImageItem {
+  id: string           // Unique ID for drag tracking (e.g., 'existing-1736025600-0')
+  src: string          // Image URL
+  isExisting: boolean  // Track source for reference (not logic)
+}
+
 definePageMeta({
   layout: 'default',
 })
@@ -59,8 +66,6 @@ const uploadForm = reactive({
   html_content: '',
   keywords: [] as string[],
   images: [] as string[],
-  uploadImages: [] as boolean[],
-  imageLoaded: [] as boolean[],
   price: null as number | null,
 })
 
@@ -272,14 +277,18 @@ function openUploadModal(product: Product) {
   uploadForm.html_content = product.html_content
   uploadForm.keywords = [...product.keywords]
   uploadForm.images = [...product.images]
-  uploadForm.uploadImages = product.images.map(() => false)
-  uploadForm.imageLoaded = product.images.map(() => true)
   uploadForm.price = product.price
   // Pre-fill selected categories from raw_categories
   selectedCategories.value = (product.raw_categories || [])
     .map(rc => categories.value.find(c => c.id === rc.id))
     .filter((c): c is Category => c !== undefined)
   // Reset upload state
+  // Initialize allImages with existing product images
+  allImages.value = product.images.map((src, i) => ({
+    id: `existing-${Date.now()}-${i}`,
+    src,
+    isExisting: true
+  }))
   newImages.value = []
   selectedFiles.value = []
   uploadingFiles.value = []
@@ -296,6 +305,7 @@ function closeUploadModal() {
   isCategoryDropdownOpen.value = false
   currentStep.value = 0
   // Reset upload state
+  allImages.value = []
   newImages.value = []
   selectedFiles.value = []
   uploadingFiles.value = []
@@ -357,9 +367,33 @@ function openImagePreview(image: string) {
   isImagePreviewOpen.value = true
 }
 
-// Handle image load error
-function onImageError(index: number) {
-  uploadForm.imageLoaded[index] = false
+// ========== Image Management Functions ==========
+
+// Delete image from the list
+function deleteImage(index: number) {
+  allImages.value.splice(index, 1)
+
+  toast.add({
+    title: 'Image Removed',
+    description: 'Image removed from upload list',
+    color: 'neutral',
+    icon: 'i-heroicons-trash',
+  })
+}
+
+// Auto-delete on image load error
+function onImageLoadError(src: string) {
+  const index = allImages.value.findIndex(img => img.src === src)
+  if (index > -1) {
+    allImages.value.splice(index, 1)
+
+    toast.add({
+      title: 'Image Removed',
+      description: 'Failed to load image, automatically removed from list',
+      color: 'warning',
+      icon: 'i-heroicons-exclamation-triangle',
+    })
+  }
 }
 
 // Submit upload
@@ -377,11 +411,21 @@ async function submitUpload() {
     return
   }
 
+  // Require at least one image
+  if (allImages.value.length === 0) {
+    toast.add({
+      title: 'Validation Error',
+      description: 'At least one image is required',
+      color: 'error',
+      icon: 'i-heroicons-exclamation-triangle',
+    })
+    return
+  }
+
   uploadLoading.value = true
   try {
-    // Combine selected existing images with new uploaded images
-    const selectedExistingImages = uploadForm.images.filter((_, index) => uploadForm.uploadImages[index])
-    const imagesToUpload = [...selectedExistingImages, ...newImages.value]
+    // Use the reordered image list directly
+    const imagesToUpload = allImages.value.map(img => img.src)
 
     await $fetch('/api/products/upload', {
       method: 'POST',
@@ -426,6 +470,41 @@ const selectedFiles = useState<File[]>('products-selected-files', () => [])
 const uploadingFiles = useState<File[]>('products-uploading-files', () => [])
 const uploadProgress = useState<number[]>('products-upload-progress', () => [])
 const newImages = useState<string[]>('products-new-images', () => [])
+
+// Unified image list for drag-and-drop (combines existing + new images)
+const allImages = ref<ImageItem[]>([])
+
+// Drag state
+const draggedIndex = ref<number | null>(null)
+
+// ========== Drag & Drop Functions ==========
+
+function onDragStart(index: number, event: DragEvent) {
+  draggedIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/html', String(index))
+  }
+}
+
+function onDragEnd() {
+  draggedIndex.value = null
+}
+
+function onDrop(targetIndex: number, event: DragEvent) {
+  event.preventDefault()
+
+  if (draggedIndex.value === null || draggedIndex.value === targetIndex) {
+    return
+  }
+
+  const [removed] = allImages.value.splice(draggedIndex.value, 1)
+  if (removed) {
+    allImages.value.splice(targetIndex, 0, removed)
+  }
+
+  draggedIndex.value = null
+}
 
 // Helper: Validate file
 function validateFile(file: File): { valid: boolean; error?: string } {
@@ -490,12 +569,7 @@ async function uploadToImgBB(base64: string, fileName: string): Promise<string> 
 
 // Helper: Check for duplicate URL
 function isDuplicateUrl(url: string): boolean {
-  return uploadForm.images.includes(url) || newImages.value.includes(url)
-}
-
-// Helper: Remove newly uploaded image
-function removeNewImage(index: number) {
-  newImages.value.splice(index, 1)
+  return allImages.value.some(img => img.src === url)
 }
 
 // Upload handler function
@@ -533,6 +607,12 @@ async function uploadFiles(files: File[]) {
       // Add to new images if not duplicate
       if (!isDuplicateUrl(url)) {
         newImages.value.push(url)
+        // Add to unified image list
+        allImages.value.push({
+          id: `new-${Date.now()}-${Math.random()}`,
+          src: url,
+          isExisting: false
+        })
         toast.add({
           title: 'Upload Complete',
           description: `${file.name} uploaded successfully`,
@@ -760,55 +840,69 @@ watch(selectedFiles, (newFiles) => {
               </div>
             </div>
 
-            <!-- Newly Uploaded Images -->
-            <div v-if="newImages.length > 0" class="space-y-2">
-              <p class="text-sm font-medium">New Images</p>
-              <div class="grid grid-cols-2 gap-2">
+            <!-- Unified Image Grid with Drag & Drop -->
+            <div v-if="allImages.length > 0">
+              <p class="text-sm font-medium mb-2">
+                Images ({{ allImages.length }}) - Drag to reorder
+              </p>
+              <div class="grid grid-cols-2 gap-3">
                 <div
-                  v-for="(image, index) in newImages"
-                  :key="`new-${index}`"
-                  class="relative p-2 border rounded-lg group"
+                  v-for="(image, index) in allImages"
+                  :key="image.id"
+                  draggable="true"
+                  @dragstart="onDragStart(index, $event)"
+                  @dragover.prevent
+                  @dragenter.prevent
+                  @drop="onDrop(index, $event)"
+                  @dragend="onDragEnd"
+                  :class="[
+                    'relative p-2 border rounded-lg transition-all',
+                    draggedIndex === index ? 'opacity-50 scale-95' : 'hover:border-primary'
+                  ]"
+                  class="group"
                 >
-                  <div class="cursor-pointer" @click="openImagePreview(image)">
+                  <!-- Drag Handle -->
+                  <div class="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity cursor-move z-10">
+                    <div class="bg-gray-200 dark:bg-gray-700 rounded p-1">
+                      <UIcon name="i-heroicons-bars-3" class="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  <!-- Image Preview -->
+                  <div class="cursor-pointer" @click="openImagePreview(image.src)">
                     <img
-                      :src="image"
-                      :alt="`New image ${index + 1}`"
-                      class="w-full object-cover rounded hover:opacity-80 transition-opacity"
+                      :src="image.src"
+                      :alt="`Image ${index + 1}`"
+                      class="w-full aspect-square object-cover rounded hover:opacity-80 transition-opacity"
+                      draggable="false"
+                      @error="onImageLoadError(image.src)"
                     >
                   </div>
+
+                  <!-- Position Badge -->
+                  <div class="absolute top-2 right-12 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                    {{ index + 1 }}
+                  </div>
+
+                  <!-- Delete Button -->
                   <UButton
                     icon="i-heroicons-x-mark"
                     size="sm"
                     color="error"
                     variant="solid"
-                    class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                    @click="removeNewImage(index)"
+                    class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    @click="deleteImage(index)"
                   />
                 </div>
               </div>
             </div>
 
-            <!-- Existing Images with upload checkbox -->
-            <UFormField v-if="uploadForm.images.length > 0" label="Existing Images">
-              <div class="grid grid-cols-2 gap-2">
-                <div
-                  v-for="(image, index) in uploadForm.images"
-                  v-show="uploadForm.imageLoaded[index]"
-                  :key="`existing-${index}`"
-                  class="flex items-center gap-3 p-2 border rounded-lg"
-                >
-                  <UCheckbox v-model="uploadForm.uploadImages[index]" :name="`image-${index}`" />
-                  <div class="flex-1 cursor-pointer" @click="openImagePreview(image)">
-                    <img
-                      :src="image"
-                      :alt="`Image ${index + 1}`"
-                      class="w-full object-cover rounded hover:opacity-80 transition-opacity"
-                      @error="onImageError(index)"
-                    >
-                  </div>
-                </div>
-              </div>
-            </UFormField>
+            <!-- Empty State -->
+            <div v-else class="text-center py-8 border-2 border-dashed rounded-lg">
+              <UIcon name="i-heroicons-photo" class="w-12 h-12 mx-auto text-muted mb-2" />
+              <p class="text-muted">No images selected</p>
+              <p class="text-sm text-muted-foreground">Upload images to get started</p>
+            </div>
           </div>
         </div>
       </template>
