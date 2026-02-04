@@ -162,11 +162,11 @@ for (const attr of variantAttributes.value) {
 
 ## Implementation Checklist
 
-- [ ] Create `/server/api/woocommerce/variant-attributes.post.ts` endpoint
-- [ ] Update `products.vue` state from flat `variants` to grouped `variantAttributes`
-- [ ] Replace `fetchVariants()` with `fetchVariantAttributes()`
-- [ ] Update Step 3 template to render grouped sections
-- [ ] Add "Add Attribute" and "Add Value" functions
-- [ ] Update `submitUpload()` to flatten grouped structure
-- [ ] Update validation logic for grouped structure
-- [ ] Run `npx nuxt typecheck`
+- [x] Create `/server/api/woocommerce/variant-attributes.post.ts` endpoint
+- [x] Update `products.vue` state from flat `variants` to grouped `variantAttributes`
+- [x] Replace `fetchVariants()` with `fetchVariantAttributes()`
+- [x] Update Step 3 template to render grouped sections
+- [x] Add "Add Attribute" and "Add Value" functions
+- [x] Update `submitUpload()` to flatten grouped structure
+- [x] Update validation logic for grouped structure
+- [x] Run `npx nuxt typecheck`
