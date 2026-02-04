@@ -757,7 +757,7 @@ async function startWatermarking() {
 
   const needsWatermark = allImages.value.some(img => !img.watermarked)
   if (!needsWatermark) {
-    watermarkStatus.value = 'completed'
+    watermarkStatus.value = 'idle'
     return
   }
 
@@ -780,7 +780,8 @@ async function startWatermarking() {
     try {
       const response = await $fetch('/api/watermark', {
         method: 'POST',
-        body: { image_url: image.src }
+        body: { image_url: image.src },
+        timeout: 30000
       })
 
       if (response && typeof response === 'object' && 'success' in response) {
