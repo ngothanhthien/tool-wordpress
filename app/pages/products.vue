@@ -76,6 +76,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'seo_title',
     header: 'Title',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const title = row.getValue('seo_title') as string
       const previewUrl = (row.original as Product).preview_url
@@ -95,6 +96,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const status = row.getValue('status') as string
       const color = statusColors[status] || 'neutral'
@@ -107,6 +109,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'raw_categories',
     header: 'Categories',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const rawCategories = (row.original as Product).raw_categories || []
       if (rawCategories.length === 0) {
@@ -121,6 +124,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'images',
     header: 'Images',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const images = row.getValue('images') as string[]
       if (images.length === 0) {
@@ -141,6 +145,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'price',
     header: 'Price',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const price = row.getValue('price') as number | null
       if (price === null) {
@@ -156,6 +161,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'created_at',
     header: 'Created',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const date = row.getValue('created_at') as string
       const formatted = new Date(date).toLocaleDateString('vi-VN', {
@@ -174,6 +180,7 @@ const columns: TableColumn<Product>[] = [
         td: 'text-right'
       }
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cell: ({ row }: { row: any }) => {
       const product = row.original as Product
       const canUpload = product.status === ProductStatus.DRAFT || product.status === ProductStatus.FAILED
