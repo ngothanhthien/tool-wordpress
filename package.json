@@ -9,7 +9,9 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "gen:types": "dotenv -e .env -- sh -c 'bun x supabase gen types typescript --db-url \"$SUPABASE_DB_URL\" -s public > app/types/database.types.ts'",
-    "seed:users": "bun run scripts/seed-users.ts"
+    "seed:users": "bun run scripts/seed-users.ts",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@nuxt/content": "3.11.0",
@@ -29,6 +31,8 @@
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/lucide": "^1.2.86",
-    "dotenv-cli": "^11.0.0"
+    "@vitest/ui": "^4.0.18",
+    "dotenv-cli": "^11.0.0",
+    "vitest": "^4.0.18"
   }
 }
