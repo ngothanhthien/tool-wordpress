@@ -30,6 +30,8 @@ Required in `.env`:
 - `SUPABASE_KEY` - Supabase anon key
 - `SUPABASE_DB_URL` - PostgreSQL database URL (for type generation)
 - `SUPABASE_SERVICE_ROLE_KEY` - Service role key for admin operations
+- `WATERMARK_API_KEY` - API key for watermark microservice (x-api-key header)
+- `WATERMARK_BASE_URL` - Base URL of watermark microservice (default: http://localhost:8005)
 
 ## Architecture
 
@@ -66,6 +68,8 @@ scripts/                      # Utility scripts
 - Do NOT use `z.record(z.any())` - this is v3 syntax and will error
 
 **Repository Pattern**: Data access is abstracted through repository classes in `app/repositories/supabase/`. For example, `AuthRepository` encapsulates all Supabase authentication logic. Follow this pattern for new data access (e.g., `UserRepository`, `ProductRepository`).
+
+**WatermarkRepository**: Client for watermark microservice at `app/repositories/watermark.ts`. Handles POST requests to `/water-mark` endpoint with image_url and optional parameters (position, opacity).
 
 **Type-Safe Forms**: Forms use Zod schemas with Nuxt UI's `UAuthForm` component. See `login.vue` for the pattern - define a `z.object()` schema, type it with `z.output<typeof schema>`, and pass to the form component.
 
