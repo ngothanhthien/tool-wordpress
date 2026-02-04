@@ -26,15 +26,16 @@ export type AttributeStateInsert = z.input<typeof AttributeStateSchema>
 export type AttributeTermStateInsert = z.input<typeof AttributeTermStateSchema>
 
 // For form state (with UI properties)
-export const AttributeStateSchema = WooCommerceAttributeSchema.extend({
-  expanded: z.boolean().default(false),
-})
-
-export type AttributeState = z.output<typeof AttributeStateSchema>
-
 export const AttributeTermStateSchema = WooCommerceAttributeTermSchema.extend({
   selected: z.boolean().default(false),
   price: z.number().default(0),
 })
 
 export type AttributeTermState = z.output<typeof AttributeTermStateSchema>
+
+export const AttributeStateSchema = WooCommerceAttributeSchema.extend({
+  expanded: z.boolean().default(false),
+  terms: z.array(AttributeTermStateSchema),
+})
+
+export type AttributeState = z.output<typeof AttributeStateSchema>
