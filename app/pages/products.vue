@@ -812,6 +812,9 @@ function addAttribute() {
 
 // Add a new value to an attribute
 function addAttributeValue(attributeIndex: number) {
+  if (attributeIndex < 0 || attributeIndex >= variantAttributes.value.length) {
+    return
+  }
   const attr = variantAttributes.value[attributeIndex]
   if (attr) {
     attr.values.push({
@@ -824,6 +827,9 @@ function addAttributeValue(attributeIndex: number) {
 
 // Delete an entire attribute group
 function deleteAttribute(index: number) {
+  if (index < 0 || index >= variantAttributes.value.length) {
+    return
+  }
   variantAttributes.value.splice(index, 1)
   toast.add({
     title: 'Attribute Removed',
@@ -835,8 +841,14 @@ function deleteAttribute(index: number) {
 
 // Delete a specific value within an attribute
 function deleteAttributeValue(attributeIndex: number, valueIndex: number) {
+  if (attributeIndex < 0 || attributeIndex >= variantAttributes.value.length) {
+    return
+  }
   const attr = variantAttributes.value[attributeIndex]
   if (attr) {
+    if (valueIndex < 0 || valueIndex >= attr.values.length) {
+      return
+    }
     attr.values.splice(valueIndex, 1)
     // Remove attribute if no values left
     if (attr.values.length === 0) {
