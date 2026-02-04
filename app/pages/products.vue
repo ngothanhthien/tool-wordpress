@@ -400,13 +400,6 @@ function openImagePreview(image: string) {
 // Delete image from the list
 function deleteImage(index: number) {
   allImages.value.splice(index, 1)
-
-  toast.add({
-    title: 'Image Removed',
-    description: 'Image removed from upload list',
-    color: 'neutral',
-    icon: 'i-heroicons-trash',
-  })
 }
 
 // Auto-delete on image load error
@@ -798,6 +791,29 @@ async function fetchVariantAttributes() {
     variantAttributes.value = []
   } finally {
     isFetchingVariants.value = false
+  }
+}
+
+// Add a new variant
+function addVariant() {
+  variants.value.push({
+    id: `variant-${Date.now()}-${Math.random()}`,
+    name: '',
+    price: uploadForm.price || 0,
+  })
+}
+
+// Delete a variant
+function deleteVariant(id: string) {
+  const index = variants.value.findIndex(v => v.id === id)
+  if (index > -1) {
+    variants.value.splice(index, 1)
+    toast.add({
+      title: 'Variant Removed',
+      description: 'Variant removed from list',
+      color: 'neutral',
+      icon: 'i-heroicons-trash',
+    })
   }
 }
 
