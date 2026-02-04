@@ -13,13 +13,14 @@ interface ImageItem {
   isExisting: boolean  // Track source for reference (not logic)
 }
 
-// Variant attribute types for grouped display
+// Variant attribute value type
 interface VariantAttributeValue {
   name: string        // e.g., "Red", "M"
   price: number
   selected: boolean
 }
 
+// Variant attribute type (groups attributes like Color, Size, etc.)
 interface VariantAttribute {
   name: string        // e.g., "Color", "Size"
   values: VariantAttributeValue[]
@@ -48,9 +49,17 @@ const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
 const isFetchingVariants = ref(false)
-const isNavigatingToVariants = ref(false)
 
-// Variant state - grouped by attribute
+// Variant state
+interface ProductVariant {
+  id: string
+  name: string
+  price: number
+}
+
+const variants = ref<ProductVariant[]>([])
+
+// NEW: Variant attributes state (for attribute-based variant grouping)
 const variantAttributes = ref<VariantAttribute[]>([])
 
 // Stepper items
@@ -334,6 +343,7 @@ function closeUploadModal() {
   uploadingFiles.value = []
   uploadProgress.value = []
   variants.value = []
+  variantAttributes.value = []
 }
 
 // Remove category from selection (handles Category objects and ID strings)
@@ -376,12 +386,7 @@ async function nextStep() {
   if (currentStep.value < stepperItems.length - 1) {
     // Fetch variants when moving from Categories (2) to Variants (3)
     if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-      isNavigatingToVariants.value = true
-      try {
-        await fetchVariants()
-      } finally {
-        isNavigatingToVariants.value = false
-      }
+      await fetchVariants()
     }
     currentStep.value++
   }
@@ -405,6 +410,13 @@ function openImagePreview(image: string) {
 // Delete image from the list
 function deleteImage(index: number) {
   allImages.value.splice(index, 1)
+
+  toast.add({
+    title: 'Image Removed',
+    description: 'Image removed from upload list',
+    color: 'neutral',
+    icon: 'i-heroicons-trash',
+  })
 }
 
 // Auto-delete on image load error
@@ -412,6 +424,13 @@ function onImageLoadError(src: string) {
   const index = allImages.value.findIndex(img => img.src === src)
   if (index > -1) {
     allImages.value.splice(index, 1)
+
+    toast.add({
+      title: 'Image Removed',
+      description: 'Failed to load image, automatically removed from list',
+      color: 'warning',
+      icon: 'i-heroicons-exclamation-triangle',
+    })
   }
 }
 
@@ -1132,8 +1151,6 @@ watch(selectedFiles, (newFiles) => {
         <UButton
           v-if="currentStep < stepperItems.length - 1"
           label="Next"
-          :loading="isNavigatingToVariants"
-          :disabled="isNavigatingToVariants"
           @click="nextStep"
         />
         <UButton
