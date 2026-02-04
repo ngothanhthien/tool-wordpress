@@ -1436,5 +1436,48 @@ watch(selectedFiles, (newFiles) => {
         />
       </template>
     </UModal>
+
+    <!-- Watermark Error Modal -->
+    <UModal
+      v-model:open="isWatermarkErrorModalOpen"
+      title="Watermarking Failed"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm text-muted">
+            Some images failed to watermark. You can retry the failed images or remove them from the list.
+          </p>
+
+          <!-- Error list -->
+          <div v-if="watermarkErrors.length > 0" class="space-y-2">
+            <p class="text-sm font-medium">Failed images:</p>
+            <div class="max-h-60 overflow-y-auto space-y-2">
+              <div
+                v-for="(error, index) in watermarkErrors"
+                :key="index"
+                class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm"
+              >
+                {{ error }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <UButton
+          label="Remove Failed & Continue"
+          color="neutral"
+          variant="outline"
+          @click="removeFailedAndContinue"
+        />
+        <UButton
+          label="Retry Failed Images"
+          color="primary"
+          @click="retryFailedImages"
+        />
+      </template>
+    </UModal>
   </div>
 </template>
