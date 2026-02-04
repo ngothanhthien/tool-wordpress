@@ -1006,6 +1006,49 @@ watch(selectedFiles, (newFiles) => {
     >
       <template #body>
         <div v-if="selectedProduct" class="space-y-6">
+          <!-- Watermark Progress Bar (persistent across all steps) -->
+          <div v-if="watermarkStatus !== 'idle'" class="p-4 rounded-lg" :class="[
+            watermarkStatus === 'processing' ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' : '',
+            watermarkStatus === 'completed' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : '',
+            watermarkStatus === 'failed' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : ''
+          ]">
+            <!-- Processing state -->
+            <div v-if="watermarkStatus === 'processing'" class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">Watermarking images...</span>
+                <span class="text-sm text-muted">{{ watermarkProgress }}%</span>
+              </div>
+              <UProgress
+                :value="watermarkProgress"
+                :max="100"
+                color="primary"
+                size="md"
+              />
+              <p class="text-xs text-muted">
+                Processing in background, you can continue to other steps
+              </p>
+            </div>
+
+            <!-- Completed state -->
+            <div v-else-if="watermarkStatus === 'completed'" class="flex items-center gap-2">
+              <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-green-500" />
+              <span class="text-sm font-medium">
+                {{ allImages.filter(img => img.watermarked).length }}/{{ allImages.length }} images watermarked
+              </span>
+            </div>
+
+            <!-- Failed state -->
+            <div v-else-if="watermarkStatus === 'failed'" class="space-y-2">
+              <div class="flex items-center gap-2">
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-500" />
+                <span class="text-sm font-medium">
+                  {{ allImages.filter(img => img.watermarked).length }}/{{ allImages.length }} watermarked, {{ watermarkErrors.length }} failed
+                </span>
+              </div>
+              <p class="text-xs text-muted">See error modal for details</p>
+            </div>
+          </div>
+
           <!-- Stepper -->
           <UStepper v-model="currentStep" :items="stepperItems" />
 
