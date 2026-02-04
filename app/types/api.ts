@@ -1,5 +1,5 @@
 export interface GenerateProductRequest {
-  chatInput: string
+  urls: string[]
 }
 
 export interface ApiResponse<T> {

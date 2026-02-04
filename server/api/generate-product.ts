@@ -7,12 +7,12 @@ import { N8NProcessStatus } from '~/entities/N8NProccess.schema'
 export default defineEventHandler(async (event): Promise<ApiResponse<N8NProcess | null>> => {
   const body = await readBody(event) as GenerateProductRequest
   const supabase = await serverSupabaseClient(event)
-  const { chatInput } = body
+  const { urls } = body
 
-  if (!chatInput) {
+  if (!urls || !Array.isArray(urls) || urls.length === 0) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'chatInput is required',
+      statusMessage: 'urls array is required and must not be empty',
     })
   }
 
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event): Promise<ApiResponse<N8NProcess 
         'Content-Type': 'application/json',
       },
       body: {
-        chatInput,
+        urls,
         process_id: id,
       },
     }) as N8NTriggerResponse
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event): Promise<ApiResponse<N8NProcess 
       n8n_execution_id: response.execution_id,
       status: N8NProcessStatus.RUNNING,
       input_payload: {
-        chatInput,
+        urls,
       },
     })
 

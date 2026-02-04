@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ProductWithCategory } from '~/entities/Product.schema'
+import type { Product } from '~/entities/Product.schema'
 import type { Category } from '~/entities/Category.schema'
 import type { TableColumn } from '@nuxt/ui'
 import { getPaginationRowModel } from '@tanstack/table-core'
@@ -19,11 +19,11 @@ const toast = useToast()
 
 // State
 const globalFilter = ref('')
-const statusFilter = ref<ProductWithCategory['status'] | null>(null)
-const categoryFilter = ref<string | null>(null)
+const statusFilter = ref<Product['status'] | null>(null)
 const categories = ref<Category[]>([])
 const isUploadModalOpen = ref(false)
-const selectedProduct = ref<ProductWithCategory | null>(null)
+const selectedProduct = ref<Product | null>(null)
+const selectedCategories = ref<Category[]>([])
 const uploadLoading = ref(false)
 const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
@@ -38,10 +38,16 @@ const stepperItems = [
     value: 0,
   },
   {
+    title: 'Categories',
+    description: 'Select product categories',
+    icon: 'i-heroicons-tag',
+    value: 1,
+  },
+  {
     title: 'Media & Price',
     description: 'Set images and price',
     icon: 'i-heroicons-photo',
-    value: 1,
+    value: 2,
   },
 ]
 
@@ -61,7 +67,6 @@ const uploadForm = reactive({
   uploadImages: [] as boolean[],
   imageLoaded: [] as boolean[],
   price: null as number | null,
-  categoryId: null as string | null,
 })
 
 // Status colors
@@ -73,13 +78,13 @@ const statusColors: Record<string, 'success' | 'error' | 'warning' | 'info' | 'n
 }
 
 // Define table columns
-const columns: TableColumn<ProductWithCategory>[] = [
+const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'seo_title',
     header: 'Title',
     cell: ({ row }: { row: any }) => {
       const title = row.getValue('seo_title') as string
-      const previewUrl = (row.original as ProductWithCategory).preview_url
+      const previewUrl = (row.original as Product).preview_url
 
       if (previewUrl) {
         return h('a', {
@@ -106,14 +111,17 @@ const columns: TableColumn<ProductWithCategory>[] = [
     },
   },
   {
-    accessorKey: 'category',
-    header: 'Category',
+    accessorKey: 'raw_categories',
+    header: 'Categories',
     cell: ({ row }: { row: any }) => {
-      const category = (row.original as ProductWithCategory).category
-      if (!category) {
-        return h('span', { class: 'text-muted text-sm' }, 'Uncategorized')
+      const rawCategories = (row.original as Product).raw_categories || []
+      if (rawCategories.length === 0) {
+        return h('span', { class: 'text-muted text-sm' }, 'No categories')
       }
-      return h('span', { class: 'text-sm' }, category.name)
+      const names = rawCategories.map((c: any) => c.name).slice(0, 2)
+      const display = names.join(', ')
+      const remaining = rawCategories.length > 2 ? ` +${rawCategories.length - 2}` : ''
+      return h('span', { class: 'text-sm' }, display + remaining)
     },
   },
   {
@@ -173,7 +181,7 @@ const columns: TableColumn<ProductWithCategory>[] = [
       }
     },
     cell: ({ row }: { row: any }) => {
-      const product = row.original as ProductWithCategory
+      const product = row.original as Product
       const canUpload = product.status === ProductStatus.DRAFT || product.status === ProductStatus.FAILED
 
       if (!canUpload) {
@@ -198,7 +206,6 @@ const { data, pending, error, refresh } = await useAsyncData(
     const repo = new ProductRepository(supabase)
     const result = await repo.findAllWithCategory({
       status: statusFilter.value,
-      categoryId: categoryFilter.value,
     })
 
     return {
@@ -207,11 +214,11 @@ const { data, pending, error, refresh } = await useAsyncData(
     }
   },
   {
-    watch: [statusFilter, categoryFilter],
+    watch: [statusFilter],
   },
 )
 
-// Fetch categories for filter
+// Fetch categories for selection
 const { data: categoriesData, error: categoriesError } = await useAsyncData(
   'categories',
   async () => {
@@ -259,7 +266,7 @@ function formatPrice(price: number | null) {
 }
 
 // Open upload modal
-function openUploadModal(product: ProductWithCategory) {
+function openUploadModal(product: Product) {
   selectedProduct.value = product
   uploadForm.seo_title = product.seo_title
   uploadForm.meta_description = product.meta_description
@@ -270,7 +277,10 @@ function openUploadModal(product: ProductWithCategory) {
   uploadForm.uploadImages = product.images.map(() => false)
   uploadForm.imageLoaded = product.images.map(() => true)
   uploadForm.price = product.price
-  uploadForm.categoryId = product.category_id
+  // Pre-fill selected categories from raw_categories
+  selectedCategories.value = (product.raw_categories || [])
+    .map(rc => categories.value.find(c => c.id === rc.id))
+    .filter((c): c is Category => c !== undefined)
   currentStep.value = 0
   isUploadModalOpen.value = true
 }
@@ -279,8 +289,8 @@ function openUploadModal(product: ProductWithCategory) {
 function closeUploadModal() {
   isUploadModalOpen.value = false
   selectedProduct.value = null
+  selectedCategories.value = []
   currentStep.value = 0
-  uploadForm.categoryId = null
 }
 
 // Go to next step
@@ -339,7 +349,7 @@ async function submitUpload() {
         keywords: uploadForm.keywords,
         images: imagesToUpload,
         price: uploadForm.price,
-        category_id: uploadForm.categoryId,
+        categories: selectedCategories.value,
       },
     })
 
@@ -371,17 +381,6 @@ async function submitUpload() {
     <div class="w-full max-w-6xl flex items-center justify-between gap-4">
       <h1 class="text-2xl font-bold">Products</h1>
       <div class="flex items-center gap-2">
-        <USelect
-          v-model="categoryFilter"
-          :items="[
-            { label: 'All Categories', value: undefined },
-            { label: 'Uncategorized', value: null },
-            ...categories.map(c => ({ label: c.name, value: c.id })),
-          ]"
-          placeholder="Filter by category"
-          class="w-48"
-          value-key="value"
-        />
         <USelect
           v-model="statusFilter"
           :items="[
@@ -454,18 +453,24 @@ async function submitUpload() {
               <UTextarea v-model="uploadForm.html_content" class="w-full" placeholder="HTML content" :rows="5" readonly />
             </UFormField>
 
-            <!-- Category -->
-            <UFormField label="Category">
-              <USelect
-                v-model="uploadForm.categoryId"
-                :items="[
-                  { label: 'No category', value: null },
-                  ...categories.map(c => ({ label: c.name, value: c.id })),
-                ]"
-                placeholder="Select a category"
+            <!-- Categories -->
+            <UFormField label="Categories">
+              <USelectMenu
+                v-model="selectedCategories"
+                :items="categories as any"
+                multiple
+                create-item
+                placeholder="Search categories or add new..."
+                value-key="id"
+                label-key="name"
+                by="id"
                 class="w-full"
-                value-key="value"
-              />
+              >
+                <template #item-label="{ item }">
+                  {{ item.name }}
+                  <span class="text-muted text-xs ml-2">{{ item.slug }}</span>
+                </template>
+              </USelectMenu>
             </UFormField>
           </div>
 
