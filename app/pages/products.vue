@@ -50,16 +50,7 @@ const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
 const isFetchingVariants = ref(false)
 
-// Variant state
-interface ProductVariant {
-  id: string
-  name: string
-  price: number
-}
-
-const variants = ref<ProductVariant[]>([])
-
-// NEW: Variant attributes state (for attribute-based variant grouping)
+// Variant attributes state (for attribute-based variant grouping)
 const variantAttributes = ref<VariantAttribute[]>([])
 
 // Stepper items
@@ -342,7 +333,6 @@ function closeUploadModal() {
   selectedFiles.value = []
   uploadingFiles.value = []
   uploadProgress.value = []
-  variants.value = []
   variantAttributes.value = []
 }
 
@@ -808,29 +798,6 @@ async function fetchVariantAttributes() {
     variantAttributes.value = []
   } finally {
     isFetchingVariants.value = false
-  }
-}
-
-// Add a new variant
-function addVariant() {
-  variants.value.push({
-    id: `variant-${Date.now()}-${Math.random()}`,
-    name: '',
-    price: uploadForm.price || 0,
-  })
-}
-
-// Delete a variant
-function deleteVariant(id: string) {
-  const index = variants.value.findIndex(v => v.id === id)
-  if (index > -1) {
-    variants.value.splice(index, 1)
-    toast.add({
-      title: 'Variant Removed',
-      description: 'Variant removed from list',
-      color: 'neutral',
-      icon: 'i-heroicons-trash',
-    })
   }
 }
 
