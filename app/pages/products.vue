@@ -446,8 +446,18 @@ async function submitUpload() {
             </UFormField>
           </div>
 
-          <!-- Step 1: Categories -->
-          <div v-show="currentStep === 1" class="space-y-4">
+          <!-- Step 2: Categories & Price -->
+          <div v-show="currentStep === 2" class="space-y-4">
+            <!-- Price -->
+            <UFormField label="Price (VND)" required>
+              <UInputNumber
+                v-model="uploadForm.price"
+                placeholder="Enter price"
+                :increment="false"
+                :decrement="false"
+              />
+            </UFormField>
+
             <!-- Categories -->
             <UFormField label="Categories">
               <USelectMenu
@@ -469,18 +479,8 @@ async function submitUpload() {
             </UFormField>
           </div>
 
-          <!-- Step 2: Media & Price -->
-          <div v-show="currentStep === 2" class="space-y-4">
-            <!-- Price -->
-            <UFormField label="Price (VND)" required>
-              <UInputNumber
-                v-model="uploadForm.price"
-                placeholder="Enter price"
-                :increment="false"
-                :decrement="false"
-              />
-            </UFormField>
-
+          <!-- Step 1: Media -->
+          <div v-show="currentStep === 1" class="space-y-4">
             <!-- Images with upload checkbox -->
             <UFormField v-if="uploadForm.images.length > 0" label="Images">
               <div class="grid grid-cols-2 gap-2">

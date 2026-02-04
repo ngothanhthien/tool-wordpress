@@ -28,6 +28,7 @@ export default defineNuxtConfig({
     wooCommerceUrl: process.env.WOOCOMMERCE_URL,
     wooCommerceConsumerKey: process.env.WOOCOMMERCE_CONSUMER_KEY,
     wooCommerceConsumerSecret: process.env.WOOCOMMERCE_CONSUMER_SECRET,
+    imgbbApiKey: process.env.IMGBB_API_KEY,
     supabase: {
       url: process.env.SUPABASE_URL,
       serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
