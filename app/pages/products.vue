@@ -1409,6 +1409,7 @@ watch(selectedFiles, (newFiles) => {
           v-if="currentStep === stepperItems.length - 1"
           label="Submit Upload"
           :loading="uploadLoading"
+          :disabled="uploadLoading || isWatermarking || watermarkStatus === 'failed'"
           @click="submitUpload"
         />
       </template>
