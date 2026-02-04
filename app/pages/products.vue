@@ -334,6 +334,12 @@ function closeUploadModal() {
   uploadingFiles.value = []
   uploadProgress.value = []
   variantAttributes.value = []
+  // Reset watermark state
+  isWatermarking.value = false
+  watermarkProgress.value = 0
+  watermarkStatus.value = 'idle'
+  watermarkErrors.value = []
+  isWatermarkErrorModalOpen.value = false
 }
 
 // Remove category from selection (handles Category objects and ID strings)
