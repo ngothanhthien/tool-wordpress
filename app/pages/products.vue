@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Product } from '~/entities/Product.schema'
 import type { Category } from '~/entities/Category.schema'
-import type { TableColumn, Row } from '@nuxt/ui'
+import type { TableColumn } from '@nuxt/ui'
 import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
 import { CategoryRepository } from '~/repositories/supabase/category'
@@ -76,7 +76,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'seo_title',
     header: 'Title',
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const title = row.getValue('seo_title') as string
       const previewUrl = (row.original as Product).preview_url
 
@@ -95,7 +95,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const status = row.getValue('status') as string
       const color = statusColors[status] || 'neutral'
       return h(UBadge, {
@@ -107,7 +107,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'raw_categories',
     header: 'Categories',
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const rawCategories = (row.original as Product).raw_categories || []
       if (rawCategories.length === 0) {
         return h('span', { class: 'text-muted text-sm' }, 'No categories')
@@ -121,7 +121,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'images',
     header: 'Images',
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const images = row.getValue('images') as string[]
       if (images.length === 0) {
         return h('span', { class: 'text-muted text-sm' }, 'No images')
@@ -141,7 +141,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'price',
     header: 'Price',
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const price = row.getValue('price') as number | null
       if (price === null) {
         return h('span', { class: 'text-muted text-sm' }, 'N/A')
@@ -156,7 +156,7 @@ const columns: TableColumn<Product>[] = [
   {
     accessorKey: 'created_at',
     header: 'Created',
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const date = row.getValue('created_at') as string
       const formatted = new Date(date).toLocaleDateString('vi-VN', {
         year: 'numeric',
@@ -174,7 +174,7 @@ const columns: TableColumn<Product>[] = [
         td: 'text-right'
       }
     },
-    cell: ({ row }: { row: Row<Product> }) => {
+    cell: ({ row }: { row: any }) => {
       const product = row.original as Product
       const canUpload = product.status === ProductStatus.DRAFT || product.status === ProductStatus.FAILED
 
