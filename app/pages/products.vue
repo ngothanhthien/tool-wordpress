@@ -5,6 +5,7 @@ import type { TableColumn } from '@nuxt/ui'
 import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
 import { CategoryRepository } from '~/repositories/supabase/category'
+import { useWooCommerceAttributes } from '~/composables/useWooCommerceAttributes'
 
 // Image item type for unified drag-and-drop list
 interface ImageItem {
@@ -58,6 +59,19 @@ const isWatermarkErrorModalOpen = ref(false)
 
 // Variant attributes state (for attribute-based variant grouping)
 const variantAttributes = ref<VariantAttribute[]>([])
+
+// WooCommerce attributes (global attributes fetched from WC)
+const {
+  attributes: wcAttributes,
+  loading: loadingAttributes,
+  error: attributesError,
+  fetchAttributes,
+  toggleAttributeExpanded,
+  toggleTermSelected,
+  toggleAllTerms,
+  updateTermPrice,
+  getSelectedTerms
+} = useWooCommerceAttributes()
 
 // Stepper items
 const stepperItems = [
@@ -996,6 +1010,28 @@ watch(selectedFiles, (newFiles) => {
   if (newFiles?.length) {
     uploadFiles(newFiles)
     selectedFiles.value = []
+  }
+})
+
+// Fetch WooCommerce attributes when entering variants step
+watch(currentStep, async (newStep) => {
+  if (newStep === 3 && wcAttributes.value.length === 0) {
+    try {
+      // Get WooCommerce credentials from environment or user settings
+      const wcCredentials = {
+        baseUrl: process.env.NUXT_WOOCOMMERCE_URL || '',
+        consumerKey: process.env.NUXT_WOOCOMMERCE_KEY || '',
+        consumerSecret: process.env.NUXT_WOOCOMMERCE_SECRET || ''
+      }
+
+      await fetchAttributes(wcCredentials)
+    } catch (e) {
+      toast.add({
+        title: 'Failed to load attributes',
+        description: 'Please check WooCommerce credentials',
+        color: 'error'
+      })
+    }
   }
 })
 </script>
