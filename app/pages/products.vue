@@ -743,6 +743,82 @@ async function uploadFiles(files: File[]) {
   }
 }
 
+// ========== Watermark Functions ==========
+
+/**
+ * Start background watermarking for all non-watermarked images
+ * Non-blocking - allows navigation while processing
+ */
+async function startWatermarking() {
+  // Skip if already watermarking or all images already watermarked
+  if (isWatermarking.value) {
+    return
+  }
+
+  const needsWatermark = allImages.value.some(img => !img.watermarked)
+  if (!needsWatermark) {
+    watermarkStatus.value = 'completed'
+    return
+  }
+
+  isWatermarking.value = true
+  watermarkStatus.value = 'processing'
+  watermarkErrors.value = []
+  watermarkProgress.value = 0
+
+  const total = allImages.value.length
+  let completed = 0
+
+  for (const image of allImages.value) {
+    // Skip already watermarked images
+    if (image.watermarked) {
+      completed++
+      watermarkProgress.value = Math.round((completed / total) * 100)
+      continue
+    }
+
+    try {
+      const response = await $fetch('/api/watermark', {
+        method: 'POST',
+        body: { image_url: image.src }
+      })
+
+      if (response && typeof response === 'object' && 'success' in response) {
+        const result = response as { success: boolean; data?: { watermarked_url: string }; error?: string }
+
+        if (result.success && result.data?.watermarked_url) {
+          // Replace URL with watermarked version
+          image.src = result.data.watermarked_url
+          image.watermarked = true
+        } else {
+          watermarkErrors.value.push(`Image ${image.id}: ${result.error || 'Unknown error'}`)
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      watermarkErrors.value.push(`Image ${image.id}: ${errorMsg}`)
+    }
+
+    completed++
+    watermarkProgress.value = Math.round((completed / total) * 100)
+  }
+
+  isWatermarking.value = false
+
+  if (watermarkErrors.value.length > 0) {
+    watermarkStatus.value = 'failed'
+    isWatermarkErrorModalOpen.value = true
+  } else {
+    watermarkStatus.value = 'completed'
+    toast.add({
+      title: 'Watermarking Complete',
+      description: `Successfully watermarked ${total} image(s)`,
+      color: 'success',
+      icon: 'i-heroicons-check-circle'
+    })
+  }
+}
+
 // ========== Variant Management Functions ==========
 
 // Fetch variant attributes from WooCommerce
