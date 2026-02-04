@@ -15,19 +15,6 @@ interface ImageItem {
   watermarked: boolean // Track watermark status
 }
 
-// Variant attribute value type
-interface VariantAttributeValue {
-  name: string        // e.g., "Red", "M"
-  price: number
-  selected: boolean
-}
-
-// Variant attribute type (groups attributes like Color, Size, etc.)
-interface VariantAttribute {
-  name: string        // e.g., "Color", "Size"
-  values: VariantAttributeValue[]
-}
-
 definePageMeta({
   layout: 'default',
 })
@@ -51,15 +38,11 @@ const uploadLoading = ref(false)
 const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
-const isFetchingVariants = ref(false)
 const isWatermarking = ref(false)
 const watermarkProgress = ref(0)
 const watermarkStatus = ref<'idle' | 'processing' | 'completed' | 'failed'>('idle')
 const watermarkErrors = ref<string[]>([])
 const isWatermarkErrorModalOpen = ref(false)
-
-// Variant attributes state (for attribute-based variant grouping)
-const variantAttributes = ref<VariantAttribute[]>([])
 
 // WooCommerce attributes (global attributes fetched from WC)
 const {
@@ -355,7 +338,6 @@ function closeUploadModal() {
   selectedFiles.value = []
   uploadingFiles.value = []
   uploadProgress.value = []
-  variantAttributes.value = []
 }
 
 // Remove category from selection (handles Category objects and ID strings)
@@ -403,11 +385,6 @@ async function nextStep() {
       // Start background watermarking (non-blocking)
       startWatermarking() // Don't await - let it run in background
     }
-  }
-
-  // Fetch variants when moving from Categories (2) to Variants (3)
-  if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-    await fetchVariantAttributes()
   }
 
   if (currentStep.value < stepperItems.length - 1) {
@@ -476,59 +453,14 @@ async function submitUpload() {
     return
   }
 
-  // Validate and flatten variant attributes
-  const validVariants: { name: string; price: number }[] = []
+  // Get selected attributes in WooCommerce format
+  const selectedAttributes = getSelectedTerms()
 
-  for (const attr of variantAttributes.value) {
-    // Validate attribute name
-    if (!attr.name || attr.name.trim() === '') {
-      toast.add({
-        title: 'Validation Error',
-        description: 'Attribute name cannot be empty',
-        color: 'error',
-        icon: 'i-heroicons-exclamation-triangle',
-      })
-      return
-    }
-
-    for (const val of attr.values) {
-      // Skip unselected values
-      if (!val.selected) {
-        continue
-      }
-
-      // Validate value name
-      if (!val.name || val.name.trim() === '') {
-        toast.add({
-          title: 'Validation Error',
-          description: `Variant value name cannot be empty in attribute: ${attr.name}`,
-          color: 'error',
-          icon: 'i-heroicons-exclamation-triangle',
-        })
-        return
-      }
-
-      // Validate price
-      if (typeof val.price !== 'number' || val.price < 0) {
-        toast.add({
-          title: 'Validation Error',
-          description: `Invalid price for variant: ${val.name}`,
-          color: 'error',
-          icon: 'i-heroicons-exclamation-triangle',
-        })
-        return
-      }
-
-      // Add to flattened list
-      validVariants.push({ name: val.name, price: val.price })
-    }
-  }
-
-  // Require at least one selected variant value
-  if (validVariants.length === 0) {
+  // Require at least one attribute with at least one selected term
+  if (selectedAttributes.length === 0) {
     toast.add({
       title: 'Validation Error',
-      description: 'At least one variant value must be selected',
+      description: 'At least one attribute term must be selected',
       color: 'error',
       icon: 'i-heroicons-exclamation-triangle',
     })
@@ -552,7 +484,13 @@ async function submitUpload() {
         images: imagesToUpload,
         price: uploadForm.price,
         categories: selectedCategories.value,
-        variants: validVariants,
+        attributes: selectedAttributes.map(attr => ({
+          id: attr.id,
+          name: attr.name,
+          variation: true,
+          visible: true,
+          options: attr.options
+        })),
       },
     })
 
@@ -885,124 +823,6 @@ function removeFailedAndContinue() {
       color: 'error',
       icon: 'i-heroicons-exclamation-triangle'
     })
-  }
-}
-
-// ========== Variant Management Functions ==========
-
-// Fetch variant attributes from WooCommerce
-async function fetchVariantAttributes() {
-  if (selectedCategories.value.length === 0) {
-    variantAttributes.value = []
-    return
-  }
-
-  isFetchingVariants.value = true
-  try {
-    const categoryIds = selectedCategories.value.map(c => Number(c.id))
-    const response = await $fetch('/api/woocommerce/variant-attributes', {
-      method: 'POST',
-      body: { category_ids: categoryIds },
-    })
-
-    if (response && typeof response === 'object' && 'attributes' in response) {
-      const data = response as { attributes: Record<string, string[]> }
-
-      // Transform API response to editable state structure
-      variantAttributes.value = Object.entries(data.attributes)
-        .filter(([_, values]) => values.length > 0)  // Skip empty attributes
-        .map(([name, values]) => ({
-          name,
-          values: values.map(v => ({
-            name: v,
-            price: uploadForm.price || 0,
-            selected: true,
-          })),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))  // Sort alphabetically
-
-      const attrCount = variantAttributes.value.length
-      const valueCount = variantAttributes.value.reduce((sum, attr) => sum + attr.values.length, 0)
-
-      if (attrCount > 0) {
-        toast.add({
-          title: 'Attributes Found',
-          description: `Found ${attrCount} attribute${attrCount > 1 ? 's' : ''} with ${valueCount} value${valueCount > 1 ? 's' : ''}`,
-          color: 'success',
-          icon: 'i-heroicons-check-circle',
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching variant attributes:', error)
-    toast.add({
-      title: 'Could not fetch attributes',
-      description: 'You can still add attributes manually',
-      color: 'warning',
-      icon: 'i-heroicons-exclamation-triangle',
-    })
-    variantAttributes.value = []
-  } finally {
-    isFetchingVariants.value = false
-  }
-}
-
-// Add a new attribute group
-function addAttribute() {
-  variantAttributes.value.push({
-    name: '',
-    values: [{
-      name: '',
-      price: uploadForm.price || 0,
-      selected: true,
-    }],
-  })
-}
-
-// Add a new value to an attribute
-function addAttributeValue(attributeIndex: number) {
-  if (attributeIndex < 0 || attributeIndex >= variantAttributes.value.length) {
-    return
-  }
-  const attr = variantAttributes.value[attributeIndex]
-  if (attr) {
-    attr.values.push({
-      name: '',
-      price: uploadForm.price || 0,
-      selected: true,
-    })
-  }
-}
-
-// Delete an entire attribute group
-function deleteAttribute(index: number) {
-  if (index < 0 || index >= variantAttributes.value.length) {
-    return
-  }
-  variantAttributes.value.splice(index, 1)
-  toast.add({
-    title: 'Attribute Removed',
-    description: 'Attribute group removed from list',
-    color: 'neutral',
-    icon: 'i-heroicons-trash',
-  })
-}
-
-// Delete a specific value within an attribute
-function deleteAttributeValue(attributeIndex: number, valueIndex: number) {
-  if (attributeIndex < 0 || attributeIndex >= variantAttributes.value.length) {
-    return
-  }
-  const attr = variantAttributes.value[attributeIndex]
-  if (attr) {
-    if (valueIndex < 0 || valueIndex >= attr.values.length) {
-      return
-    }
-    attr.values.splice(valueIndex, 1)
-    // Remove attribute if no values left
-    if (attr.values.length === 0) {
-      variantAttributes.value.splice(attributeIndex, 1)
-    }
   }
 }
 
