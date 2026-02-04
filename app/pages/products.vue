@@ -11,6 +11,7 @@ interface ImageItem {
   id: string           // Unique ID for drag tracking (e.g., 'existing-1736025600-0')
   src: string          // Image URL
   isExisting: boolean  // Track source for reference (not logic)
+  watermarked: boolean // Track watermark status
 }
 
 // Variant attribute value type
@@ -49,6 +50,11 @@ const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
 const isFetchingVariants = ref(false)
+const isWatermarking = ref(false)
+const watermarkProgress = ref(0)
+const watermarkStatus = ref<'idle' | 'processing' | 'completed' | 'failed'>('idle')
+const watermarkErrors = ref<string[]>([])
+const isWatermarkErrorModalOpen = ref(false)
 
 // Variant attributes state (for attribute-based variant grouping)
 const variantAttributes = ref<VariantAttribute[]>([])
@@ -310,7 +316,8 @@ function openUploadModal(product: Product) {
   allImages.value = product.images.map((src, i) => ({
     id: `existing-${Date.now()}-${i}`,
     src,
-    isExisting: true
+    isExisting: true,
+    watermarked: false
   }))
   newImages.value = []
   selectedFiles.value = []
@@ -379,11 +386,22 @@ function getCategoryDisplayName(category: Category | string): string {
 
 // Go to next step
 async function nextStep() {
-  if (currentStep.value < stepperItems.length - 1) {
-    // Fetch variants when moving from Categories (2) to Variants (3)
-    if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-      await fetchVariantAttributes()
+  // Trigger watermarking when leaving Media tab (step 1)
+  if (currentStep.value === 1) {
+    const needsWatermark = allImages.value.some(img => !img.watermarked)
+
+    if (needsWatermark) {
+      // Start background watermarking (non-blocking)
+      startWatermarking() // Don't await - let it run in background
     }
+  }
+
+  // Fetch variants when moving from Categories (2) to Variants (3)
+  if (currentStep.value === 2 && selectedCategories.value.length > 0) {
+    await fetchVariantAttributes()
+  }
+
+  if (currentStep.value < stepperItems.length - 1) {
     currentStep.value++
   }
 }
@@ -698,7 +716,8 @@ async function uploadFiles(files: File[]) {
         allImages.value.push({
           id: `new-${Date.now()}-${Math.random()}`,
           src: url,
-          isExisting: false
+          isExisting: false,
+          watermarked: false
         })
         toast.add({
           title: 'Upload Complete',
@@ -738,6 +757,125 @@ async function uploadFiles(files: File[]) {
         icon: 'i-heroicons-x-circle',
       })
     }
+  }
+}
+
+// ========== Watermark Functions ==========
+
+/**
+ * Start background watermarking for all non-watermarked images
+ * Non-blocking - allows navigation while processing
+ */
+async function startWatermarking() {
+  // Skip if already watermarking or all images already watermarked
+  if (isWatermarking.value) {
+    return
+  }
+
+  const needsWatermark = allImages.value.some(img => !img.watermarked)
+  if (!needsWatermark) {
+    watermarkStatus.value = 'idle'
+    return
+  }
+
+  isWatermarking.value = true
+  watermarkStatus.value = 'processing'
+  watermarkErrors.value = []
+  watermarkProgress.value = 0
+
+  const total = allImages.value.length
+  let completed = 0
+
+  for (const image of allImages.value) {
+    // Skip already watermarked images
+    if (image.watermarked) {
+      completed++
+      watermarkProgress.value = Math.round((completed / total) * 100)
+      continue
+    }
+
+    try {
+      const response = await $fetch('/api/watermark', {
+        method: 'POST',
+        body: { image_url: image.src },
+        timeout: 30000
+      })
+
+      if (response && typeof response === 'object' && 'success' in response) {
+        const result = response as { success: boolean; data?: { watermarked_url: string }; error?: string }
+
+        if (result.success && result.data?.watermarked_url) {
+          // Replace URL with watermarked version
+          image.src = result.data.watermarked_url
+          image.watermarked = true
+        } else {
+          watermarkErrors.value.push(`Image ${image.id}: ${result.error || 'Unknown error'}`)
+        }
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      watermarkErrors.value.push(`Image ${image.id}: ${errorMsg}`)
+    }
+
+    completed++
+    watermarkProgress.value = Math.round((completed / total) * 100)
+  }
+
+  isWatermarking.value = false
+
+  if (watermarkErrors.value.length > 0) {
+    watermarkStatus.value = 'failed'
+    isWatermarkErrorModalOpen.value = true
+  } else {
+    watermarkStatus.value = 'completed'
+    toast.add({
+      title: 'Watermarking Complete',
+      description: `Successfully watermarked ${total} image(s)`,
+      color: 'success',
+      icon: 'i-heroicons-check-circle'
+    })
+  }
+}
+
+/**
+ * Retry watermarking for failed images
+ */
+async function retryFailedImages() {
+  isWatermarkErrorModalOpen.value = false
+  await startWatermarking() // Only processes non-watermarked images
+}
+
+/**
+ * Remove images that failed to watermark and continue
+ */
+function removeFailedAndContinue() {
+  // Get count before removal
+  const failedCount = watermarkErrors.value.length
+
+  // Remove images that failed to watermark (not marked as watermarked)
+  allImages.value = allImages.value.filter(img => img.watermarked)
+  isWatermarkErrorModalOpen.value = false
+  watermarkErrors.value = []
+
+  // Reset watermark status to idle since we've cleaned up
+  watermarkStatus.value = 'idle'
+  watermarkProgress.value = 0
+
+  toast.add({
+    title: 'Failed Images Removed',
+    description: `${failedCount} image(s) removed from list`,
+    color: 'warning',
+    icon: 'i-heroicons-exclamation-triangle'
+  })
+
+  // Check if we still have images
+  if (allImages.value.length === 0) {
+    toast.add({
+      title: 'No Images Remaining',
+      description: 'Please upload at least one image to continue',
+      color: 'error',
+      icon: 'i-heroicons-exclamation-triangle'
+    })
   }
 }
 
@@ -939,6 +1077,49 @@ watch(selectedFiles, (newFiles) => {
     >
       <template #body>
         <div v-if="selectedProduct" class="space-y-6">
+          <!-- Watermark Progress Bar (persistent across all steps) -->
+          <div v-if="watermarkStatus !== 'idle'" class="p-4 rounded-lg" :class="[
+            watermarkStatus === 'processing' ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' : '',
+            watermarkStatus === 'completed' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : '',
+            watermarkStatus === 'failed' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : ''
+          ]">
+            <!-- Processing state -->
+            <div v-if="watermarkStatus === 'processing'" class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">Watermarking images...</span>
+                <span class="text-sm text-muted">{{ watermarkProgress }}%</span>
+              </div>
+              <UProgress
+                :value="watermarkProgress"
+                :max="100"
+                color="primary"
+                size="md"
+              />
+              <p class="text-xs text-muted">
+                Processing in background, you can continue to other steps
+              </p>
+            </div>
+
+            <!-- Completed state -->
+            <div v-else-if="watermarkStatus === 'completed'" class="flex items-center gap-2">
+              <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-green-500" />
+              <span class="text-sm font-medium">
+                {{ allImages.filter(img => img.watermarked).length }}/{{ allImages.length }} images watermarked
+              </span>
+            </div>
+
+            <!-- Failed state -->
+            <div v-else-if="watermarkStatus === 'failed'" class="space-y-2">
+              <div class="flex items-center gap-2">
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-500" />
+                <span class="text-sm font-medium">
+                  {{ allImages.filter(img => img.watermarked).length }}/{{ allImages.length }} watermarked, {{ watermarkErrors.length }} failed
+                </span>
+              </div>
+              <p class="text-xs text-muted">See error modal for details</p>
+            </div>
+          </div>
+
           <!-- Stepper -->
           <UStepper v-model="currentStep" :items="stepperItems" />
 
@@ -1258,6 +1439,7 @@ watch(selectedFiles, (newFiles) => {
                     color="error"
                     variant="solid"
                     class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    :disabled="isWatermarking"
                     @click="deleteImage(index)"
                   />
                 </div>
@@ -1299,6 +1481,7 @@ watch(selectedFiles, (newFiles) => {
           v-if="currentStep === stepperItems.length - 1"
           label="Submit Upload"
           :loading="uploadLoading"
+          :disabled="uploadLoading || isWatermarking || watermarkStatus === 'failed'"
           @click="submitUpload"
         />
       </template>
@@ -1321,6 +1504,49 @@ watch(selectedFiles, (newFiles) => {
         <UButton
           label="Close"
           @click="isImagePreviewOpen = false"
+        />
+      </template>
+    </UModal>
+
+    <!-- Watermark Error Modal -->
+    <UModal
+      v-model:open="isWatermarkErrorModalOpen"
+      title="Watermarking Failed"
+      :ui="{ footer: 'justify-end' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <p class="text-sm text-muted">
+            Some images failed to watermark. You can retry the failed images or remove them from the list.
+          </p>
+
+          <!-- Error list -->
+          <div v-if="watermarkErrors.length > 0" class="space-y-2">
+            <p class="text-sm font-medium">Failed images:</p>
+            <div class="max-h-60 overflow-y-auto space-y-2">
+              <div
+                v-for="(error, index) in watermarkErrors"
+                :key="index"
+                class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm"
+              >
+                {{ error }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <UButton
+          label="Remove Failed & Continue"
+          color="neutral"
+          variant="outline"
+          @click="removeFailedAndContinue"
+        />
+        <UButton
+          label="Retry Failed Images"
+          color="primary"
+          @click="retryFailedImages"
         />
       </template>
     </UModal>
