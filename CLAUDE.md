@@ -46,8 +46,9 @@ app/                          # Nuxt app directory (Vue 3 Composition API)
 │   ├── index.vue            # Home page
 │   └── login.vue            # Login page with auth
 ├── repositories/             # Data access layer (Repository pattern)
-│   └── supabase/
-│       └── auth.ts          # AuthRepository for Supabase auth
+│   ├── supabase/
+│   │   └── auth.ts          # AuthRepository for Supabase auth
+│   └── watermark.ts          # WatermarkRepository for watermark service
 ├── types/                    # TypeScript definitions
 │   └── database.types.ts    # Generated from Supabase (do not edit manually)
 
