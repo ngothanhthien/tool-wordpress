@@ -53,15 +53,6 @@ export interface WooCommerceProduct {
 }
 
 /**
- * Variant attribute type
- */
-export interface VariantAttribute {
-  name: string
-  type: string
-  value: string
-}
-
-/**
  * WooCommerce Attribute Term
  */
 export interface WooCommerceTerm {
@@ -82,19 +73,6 @@ export interface WooCommerceAttribute {
   order_by: string
   has_archives: boolean
   terms: WooCommerceTerm[]
-}
-
-/**
- * Grouped variants by type
- */
-export type GroupedVariants = Record<string, string[]>
-
-/**
- * Suggested variant with name and price
- */
-export interface SuggestedVariant {
-  name: string
-  price: number
 }
 
 /**
@@ -415,129 +393,6 @@ export class WooCommerceRepository {
     } catch {
       return null
     }
-  }
-
-  /**
-   * Get variants grouped by type from the 2 newest products in a category
-   * @param categoryId - Category ID
-   * @returns Variants grouped by type (e.g., { "Color": ["Red", "Blue"], "Size": ["S", "M"] })
-   */
-  async getVariantsByCategory(categoryId: number): Promise<GroupedVariants> {
-    // Step 1: Get 2 newest variable products by category
-    const products = await this.listProducts({
-      category: categoryId,
-      type: 'variable',
-      orderBy: 'date',
-      order: 'desc',
-      perPage: 2,
-    })
-
-    if (!products || products.length === 0) {
-      return {}
-    }
-
-    // Step 2: Get variations for each product and collect attributes
-    const allAttributes: VariantAttribute[] = []
-
-    for (const product of products) {
-      const variations = await this.listProductVariations(product.id, { perPage: 100 })
-
-      for (const variation of variations) {
-        for (const attr of variation.attributes) {
-          // Skip empty options
-          if (!attr.option || attr.option === '') {
-            continue
-          }
-          allAttributes.push({
-            name: attr.name,
-            type: attr.name, // In WooCommerce, attribute name is the type (e.g., "Color", "Size")
-            value: attr.option,
-          })
-        }
-      }
-    }
-
-    // Step 3: Group by type (attribute name)
-    const grouped: GroupedVariants = {}
-    for (const attr of allAttributes) {
-      if (!grouped[attr.type]) {
-        grouped[attr.type] = []
-      }
-
-      if (!grouped[attr.type]?.includes(attr.value)) {
-        grouped[attr.type]!.push(attr.value)
-      }
-    }
-
-    return grouped
-  }
-
-  /**
-   * Get suggested variants from multiple categories
-   * Fetches 3 latest variable products from each category and extracts unique variations
-   * @param categoryIds - Array of category IDs
-   * @returns Flattened, deduplicated variant list with prices
-   */
-  async getSuggestedVariants(categoryIds: number[]): Promise<SuggestedVariant[]> {
-    const allVariants: SuggestedVariant[] = []
-
-    for (const categoryId of categoryIds) {
-      try {
-        // Step 1: Get 3 newest variable products by category
-        const products = await this.listProducts({
-          category: categoryId,
-          type: 'variable',
-          orderBy: 'date',
-          order: 'desc',
-          perPage: 3,
-        })
-
-        if (!products || products.length === 0) {
-          continue
-        }
-
-        // Step 2: Get variations for each product and extract variant options
-        for (const product of products) {
-          try {
-            const variations = await this.listProductVariations(product.id, { perPage: 100 })
-
-            for (const variation of variations) {
-              for (const attr of variation.attributes) {
-                // Skip empty options
-                if (!attr.option || attr.option === '') {
-                  continue
-                }
-
-                // Extract price from variation
-                const price = Number.parseFloat(variation.regular_price) || 0
-
-                allVariants.push({
-                  name: attr.option,
-                  price,
-                })
-              }
-            }
-          } catch {
-            // Continue if we can't fetch variations for a specific product
-            continue
-          }
-        }
-      } catch {
-        // Continue if we can't fetch products for a specific category
-        continue
-      }
-    }
-
-    // Step 3: Deduplicate by name (keep first occurrence which has original price)
-    const uniqueVariants = new Map<string, SuggestedVariant>()
-    for (const variant of allVariants) {
-      if (!uniqueVariants.has(variant.name)) {
-        uniqueVariants.set(variant.name, variant)
-      }
-    }
-
-    // Step 4: Return sorted array by name
-    return Array.from(uniqueVariants.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 
   /**
