@@ -386,7 +386,7 @@ async function nextStep() {
   if (currentStep.value < stepperItems.length - 1) {
     // Fetch variants when moving from Categories (2) to Variants (3)
     if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-      await fetchVariants()
+      await fetchVariantAttributes()
     }
     currentStep.value++
   }
@@ -718,46 +718,58 @@ async function uploadFiles(files: File[]) {
 
 // ========== Variant Management Functions ==========
 
-// Fetch suggested variants from WooCommerce
-async function fetchVariants() {
+// Fetch variant attributes from WooCommerce
+async function fetchVariantAttributes() {
   if (selectedCategories.value.length === 0) {
+    variantAttributes.value = []
     return
   }
 
   isFetchingVariants.value = true
   try {
     const categoryIds = selectedCategories.value.map(c => Number(c.id))
-    const response = await $fetch('/api/woocommerce/suggested-variants', {
+    const response = await $fetch('/api/woocommerce/variant-attributes', {
       method: 'POST',
-      body: { categoryIds },
+      body: { category_ids: categoryIds },
     })
 
-    if (response && typeof response === 'object' && 'variants' in response) {
-      const data = response as { variants: Array<{ name: string; price: number }> }
-      variants.value = data.variants.map(v => ({
-        id: `variant-${Date.now()}-${Math.random()}`,
-        name: v.name,
-        price: v.price,
-      }))
+    if (response && typeof response === 'object' && 'attributes' in response) {
+      const data = response as { attributes: Record<string, string[]> }
 
-      if (variants.value.length > 0) {
+      // Transform API response to editable state structure
+      variantAttributes.value = Object.entries(data.attributes)
+        .filter(([_, values]) => values.length > 0)  // Skip empty attributes
+        .map(([name, values]) => ({
+          name,
+          values: values.map(v => ({
+            name: v,
+            price: uploadForm.price || 0,
+            selected: true,
+          })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))  // Sort alphabetically
+
+      const attrCount = variantAttributes.value.length
+      const valueCount = variantAttributes.value.reduce((sum, attr) => sum + attr.values.length, 0)
+
+      if (attrCount > 0) {
         toast.add({
-          title: 'Variants Found',
-          description: `Found ${variants.value.length} variants from WooCommerce`,
+          title: 'Attributes Found',
+          description: `Found ${attrCount} attribute${attrCount > 1 ? 's' : ''} with ${valueCount} value${valueCount > 1 ? 's' : ''}`,
           color: 'success',
           icon: 'i-heroicons-check-circle',
         })
       }
     }
   } catch (error) {
-    console.error('Error fetching variants:', error)
+    console.error('Error fetching variant attributes:', error)
     toast.add({
-      title: 'Could not fetch variants',
-      description: 'You can still add variants manually',
+      title: 'Could not fetch attributes',
+      description: 'You can still add attributes manually',
       color: 'warning',
       icon: 'i-heroicons-exclamation-triangle',
     })
-    variants.value = []
+    variantAttributes.value = []
   } finally {
     isFetchingVariants.value = false
   }
