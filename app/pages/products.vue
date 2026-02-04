@@ -23,6 +23,7 @@ const categories = ref<Category[]>([])
 const isUploadModalOpen = ref(false)
 const selectedProduct = ref<Product | null>(null)
 const selectedCategories = ref<Category[]>([])
+const isCategoryDropdownOpen = ref(false)
 const uploadLoading = ref(false)
 const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
@@ -252,6 +253,11 @@ watchEffect(() => {
   }
 })
 
+// Close category dropdown when selection changes
+watch(selectedCategories, () => {
+  isCategoryDropdownOpen.value = false
+}, { deep: true })
+
 // Set categories ref
 if (categoriesData.value) {
   categories.value = categoriesData.value
@@ -273,6 +279,11 @@ function openUploadModal(product: Product) {
   selectedCategories.value = (product.raw_categories || [])
     .map(rc => categories.value.find(c => c.id === rc.id))
     .filter((c): c is Category => c !== undefined)
+  // Reset upload state
+  newImages.value = []
+  selectedFiles.value = []
+  uploadingFiles.value = []
+  uploadProgress.value = []
   currentStep.value = 0
   isUploadModalOpen.value = true
 }
@@ -282,7 +293,48 @@ function closeUploadModal() {
   isUploadModalOpen.value = false
   selectedProduct.value = null
   selectedCategories.value = []
+  isCategoryDropdownOpen.value = false
   currentStep.value = 0
+  // Reset upload state
+  newImages.value = []
+  selectedFiles.value = []
+  uploadingFiles.value = []
+  uploadProgress.value = []
+}
+
+// Remove category from selection (handles Category objects and ID strings)
+function removeCategory(category: Category | string) {
+  selectedCategories.value = selectedCategories.value.filter(c => {
+    if (typeof category === 'string') {
+      // If both are strings, compare directly
+      if (typeof c === 'string') {
+        return c !== category
+      }
+      // c is an object, compare by id
+      return c.id !== category
+    }
+    // category is an object
+    if (typeof c === 'string') {
+      return c !== category.id
+    }
+    // Both are objects, compare by id
+    return c.id !== category.id
+  })
+}
+
+// Get display name for category (handles ID strings, Category objects, and raw strings)
+function getCategoryDisplayName(category: Category | string): string {
+  if (typeof category === 'string') {
+    // If it's a string, it could be an ID - look it up in categories array
+    const found = categories.value.find(c => c.id === category)
+    if (found) {
+      return found.name
+    }
+    // Not found in categories, return as-is (for newly created items)
+    return category
+  }
+  // Category object - use name if available, otherwise fall back to id
+  return category.name || category.id
 }
 
 // Go to next step
@@ -327,8 +379,9 @@ async function submitUpload() {
 
   uploadLoading.value = true
   try {
-    // Filter images based on checkbox selection
-    const imagesToUpload = uploadForm.images.filter((_, index) => uploadForm.uploadImages[index])
+    // Combine selected existing images with new uploaded images
+    const selectedExistingImages = uploadForm.images.filter((_, index) => uploadForm.uploadImages[index])
+    const imagesToUpload = [...selectedExistingImages, ...newImages.value]
 
     await $fetch('/api/products/upload', {
       method: 'POST',
@@ -365,6 +418,169 @@ async function submitUpload() {
     uploadLoading.value = false
   }
 }
+
+// ========== Image Upload State & Functions ==========
+
+// SSR-safe upload state
+const selectedFiles = useState<File[]>('products-selected-files', () => [])
+const uploadingFiles = useState<File[]>('products-uploading-files', () => [])
+const uploadProgress = useState<number[]>('products-upload-progress', () => [])
+const newImages = useState<string[]>('products-new-images', () => [])
+
+// Helper: Validate file
+function validateFile(file: File): { valid: boolean; error?: string } {
+  // Check file type
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+  if (!validTypes.includes(file.type)) {
+    return { valid: false, error: 'Invalid file type. Please upload JPG, PNG, GIF, or WebP images.' }
+  }
+
+  // Check file size (max 32MB for ImgBB)
+  const maxSize = 32 * 1024 * 1024 // 32MB
+  if (file.size > maxSize) {
+    return { valid: false, error: 'File size exceeds 32MB limit.' }
+  }
+
+  return { valid: true }
+}
+
+// Helper: Convert file to base64
+function convertToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const result = reader.result as string
+      // Remove data URL prefix (e.g., "data:image/jpeg;base64,")
+      const commaIndex = result.indexOf(',')
+      const base64 = commaIndex > -1 ? result.slice(commaIndex + 1) : result
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Helper: Upload to ImgBB via API
+async function uploadToImgBB(base64: string, fileName: string): Promise<string> {
+  try {
+    const response = await $fetch('/api/upload-image', {
+      method: 'POST',
+      body: {
+        image: base64,
+        name: fileName,
+      },
+    })
+
+    if (!response || typeof response !== 'object') {
+      throw new Error('Invalid response from upload server')
+    }
+
+    const data = response as { success: boolean; data?: { url?: string }; error?: string }
+
+    if (!data.success || !data.data?.url) {
+      throw new Error(data.error || 'Failed to upload image')
+    }
+
+    return data.data.url
+  } catch (error) {
+    console.error('ImgBB upload error:', error)
+    throw error
+  }
+}
+
+// Helper: Check for duplicate URL
+function isDuplicateUrl(url: string): boolean {
+  return uploadForm.images.includes(url) || newImages.value.includes(url)
+}
+
+// Helper: Remove newly uploaded image
+function removeNewImage(index: number) {
+  newImages.value.splice(index, 1)
+}
+
+// Upload handler function
+async function uploadFiles(files: File[]) {
+  for (const file of files) {
+    // Validate file
+    const validation = validateFile(file)
+    if (!validation.valid) {
+      toast.add({
+        title: 'Invalid File',
+        description: validation.error,
+        color: 'error',
+        icon: 'i-heroicons-exclamation-triangle',
+      })
+      continue
+    }
+
+    // Add to uploading list
+    uploadingFiles.value.push(file)
+    const progressIndex = uploadingFiles.value.length - 1
+    uploadProgress.value.push(0)
+
+    try {
+      // Step 1: Convert to base64
+      uploadProgress.value[progressIndex] = 25
+      const base64 = await convertToBase64(file)
+
+      // Step 2: Upload to ImgBB
+      uploadProgress.value[progressIndex] = 50
+      const url = await uploadToImgBB(base64, file.name)
+
+      // Step 3: Complete
+      uploadProgress.value[progressIndex] = 100
+
+      // Add to new images if not duplicate
+      if (!isDuplicateUrl(url)) {
+        newImages.value.push(url)
+        toast.add({
+          title: 'Upload Complete',
+          description: `${file.name} uploaded successfully`,
+          color: 'success',
+          icon: 'i-heroicons-check-circle',
+        })
+      } else {
+        toast.add({
+          title: 'Duplicate Image',
+          description: 'This image is already in the list',
+          color: 'warning',
+          icon: 'i-heroicons-exclamation-triangle',
+        })
+      }
+
+      // Remove from uploading list after delay
+      setTimeout(() => {
+        const idx = uploadingFiles.value.indexOf(file)
+        if (idx > -1) {
+          uploadingFiles.value.splice(idx, 1)
+          uploadProgress.value.splice(idx, 1)
+        }
+      }, 2000)
+    } catch (error) {
+      // Remove from uploading list on error
+      const idx = uploadingFiles.value.indexOf(file)
+      if (idx > -1) {
+        uploadingFiles.value.splice(idx, 1)
+        uploadProgress.value.splice(idx, 1)
+      }
+
+      toast.add({
+        title: 'Upload Failed',
+        description: error instanceof Error ? error.message : `Failed to upload ${file.name}`,
+        color: 'error',
+        icon: 'i-heroicons-x-circle',
+      })
+    }
+  }
+}
+
+// Watch for file selection changes and auto-upload
+watch(selectedFiles, (newFiles) => {
+  if (newFiles?.length) {
+    uploadFiles(newFiles)
+    selectedFiles.value = []
+  }
+})
 </script>
 
 <template>
@@ -462,6 +678,7 @@ async function submitUpload() {
             <UFormField label="Categories">
               <USelectMenu
                 v-model="selectedCategories"
+                v-model:open="isCategoryDropdownOpen"
                 multiple
                 :items="categories as any"
                 create-item
@@ -476,18 +693,108 @@ async function submitUpload() {
                   <span class="text-muted text-xs ml-2">{{ item.slug }}</span>
                 </template>
               </USelectMenu>
+
+              <!-- Selected category badges with remove buttons -->
+              <div v-if="selectedCategories.length" class="flex flex-wrap gap-2 mt-2">
+                <UBadge
+                  v-for="category in selectedCategories"
+                  :key="typeof category === 'string' ? category : category.id"
+                  color="neutral"
+                  variant="subtle"
+                  class="cursor-default"
+                >
+                  {{ getCategoryDisplayName(category) }}
+                  <button
+                    type="button"
+                    class="ml-1 hover:text-red-500 dark:hover:text-red-400"
+                    :aria-label="`Remove ${getCategoryDisplayName(category)}`"
+                    @click.stop="removeCategory(category)"
+                  >
+                    <UIcon name="i-heroicons-x-mark" class="w-3 h-3" />
+                  </button>
+                </UBadge>
+              </div>
             </UFormField>
           </div>
 
           <!-- Step 1: Media -->
           <div v-show="currentStep === 1" class="space-y-4">
-            <!-- Images with upload checkbox -->
-            <UFormField v-if="uploadForm.images.length > 0" label="Images">
+            <!-- File Upload -->
+            <UFormField label="Upload New Images">
+              <UFileUpload
+                v-model="selectedFiles"
+                accept="image/*"
+                multiple
+                :max-size="32 * 1024 * 1024"
+                size="md"
+                color="primary"
+                class="w-full"
+              >
+                <template #label>
+                  <span>Click to upload or drag and drop images here</span>
+                </template>
+                <template #description>
+                  <span>JPG, PNG, GIF, WebP up to 32MB each</span>
+                </template>
+              </UFileUpload>
+            </UFormField>
+
+            <!-- Uploading Files with Progress -->
+            <div v-if="uploadingFiles.length > 0" class="space-y-2">
+              <p class="text-sm font-medium">Uploading...</p>
+              <div
+                v-for="(file, index) in uploadingFiles"
+                :key="`uploading-${index}`"
+                class="p-3 border rounded-lg space-y-2"
+              >
+                <div class="flex items-center justify-between">
+                  <span class="text-sm truncate">{{ file.name }}</span>
+                  <span class="text-xs text-muted">{{ uploadProgress[index] }}%</span>
+                </div>
+                <UProgress
+                  :value="uploadProgress[index]"
+                  :max="100"
+                  color="primary"
+                  size="sm"
+                />
+              </div>
+            </div>
+
+            <!-- Newly Uploaded Images -->
+            <div v-if="newImages.length > 0" class="space-y-2">
+              <p class="text-sm font-medium">New Images</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div
+                  v-for="(image, index) in newImages"
+                  :key="`new-${index}`"
+                  class="relative p-2 border rounded-lg group"
+                >
+                  <div class="cursor-pointer" @click="openImagePreview(image)">
+                    <img
+                      :src="image"
+                      :alt="`New image ${index + 1}`"
+                      class="w-full object-cover rounded hover:opacity-80 transition-opacity"
+                    >
+                  </div>
+                  <UButton
+                    icon="i-heroicons-x-mark"
+                    size="sm"
+                    color="error"
+                    variant="solid"
+                    class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                    @click="removeNewImage(index)"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Existing Images with upload checkbox -->
+            <UFormField v-if="uploadForm.images.length > 0" label="Existing Images">
               <div class="grid grid-cols-2 gap-2">
                 <div
                   v-for="(image, index) in uploadForm.images"
                   v-show="uploadForm.imageLoaded[index]"
-                  :key="index"
+                  :key="`existing-${index}`"
                   class="flex items-center gap-3 p-2 border rounded-lg"
                 >
                   <UCheckbox v-model="uploadForm.uploadImages[index]" :name="`image-${index}`" />

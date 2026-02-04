@@ -11,7 +11,7 @@ export interface WooCommerceProductResponse {
   status: 'draft' | 'publish'
   description: string
   short_description: string
-  images: Array<{ src: string; id?: number }>
+  images: Array<{ src: string; alt?: string; id?: number }>
 }
 
 /**
@@ -96,6 +96,15 @@ export class WooCommerceRepository {
   }
 
   /**
+   * Generate SEO-friendly alt text for product images
+   * @param productTitle - Product SEO title
+   * @returns Alt text string
+   */
+  private generateImageAlt(productTitle: string): string {
+    return productTitle
+  }
+
+  /**
    * Upload product to WooCommerce via REST API
    * @param product - Product entity to upload
    * @param categories - Array of categories to assign (each has id, name, slug)
@@ -111,7 +120,7 @@ export class WooCommerceRepository {
       description: product.html_content,
       short_description: product.short_description,
       regular_price: product.price ? String(product.price) : '',
-      images: product.images.map((src, index) => ({ src, position: index })),
+      images: product.images.map((src, index) => ({ src, alt: this.generateImageAlt(product.seo_title), position: index })),
       categories: categories?.map(cat => ({ id: Number.parseInt(cat.id, 10) })) || [],
       meta_data: [
         { key: '_yoast_wpseo_metadesc', value: product.meta_description },
