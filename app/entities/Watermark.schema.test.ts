@@ -4,6 +4,7 @@ import { watermarkResponseSchema, watermarkErrorSchema, watermarkApiResponseSche
 describe('Watermark Schema', () => {
   it('should validate successful watermark response', () => {
     const successResponse = {
+      success: true,
       watermarked_url: 'https://example.com/watermarked.jpg',
       original_url: 'https://example.com/original.jpg',
     }
@@ -16,6 +17,7 @@ describe('Watermark Schema', () => {
 
   it('should validate error response', () => {
     const errorResponse = {
+      success: false,
       error: 'Failed to process image',
       code: 400,
     }
@@ -25,6 +27,7 @@ describe('Watermark Schema', () => {
 
   it('should reject invalid success response (missing watermarked_url)', () => {
     const invalidResponse = {
+      success: true,
       original_url: 'https://example.com/original.jpg',
     }
     const result = watermarkResponseSchema.safeParse(invalidResponse)

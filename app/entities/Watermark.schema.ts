@@ -7,12 +7,14 @@ import { z } from 'zod'
 
 // Successful watermark application response
 export const watermarkResponseSchema = z.object({
+  success: z.literal(true),
   watermarked_url: z.string().url('Watermarked image URL must be valid'),
   original_url: z.string().url('Original image URL must be valid'),
 })
 
 // Error response from watermark API
 export const watermarkErrorSchema = z.object({
+  success: z.literal(false),
   error: z.string(),
   code: z.number().int().optional(),
 })
