@@ -87,10 +87,29 @@ interface WooCommerceConfig {
  * Repository for WooCommerce API operations
  */
 export class WooCommerceRepository {
+  private injectedConfig: WooCommerceConfig | null = null
+
+  /**
+   * Constructor with optional credential injection
+   * @param baseUrl - Optional WooCommerce site URL
+   * @param consumerKey - Optional API consumer key
+   * @param consumerSecret - Optional API consumer secret
+   */
+  constructor(baseUrl?: string, consumerKey?: string, consumerSecret?: string) {
+    if (baseUrl && consumerKey && consumerSecret) {
+      this.injectedConfig = { url: baseUrl, consumerKey, consumerSecret }
+    }
+  }
+
   /**
    * Get WooCommerce configuration from runtime config or environment variables
    */
   private getConfig(): WooCommerceConfig {
+    // Use injected config if available
+    if (this.injectedConfig) {
+      return this.injectedConfig
+    }
+
     const config = useRuntimeConfig()
     const url = config.wooCommerceUrl || process.env.WOOCOMMERCE_URL
     const consumerKey = config.wooCommerceConsumerKey || process.env.WOOCOMMERCE_CONSUMER_KEY
@@ -510,5 +529,53 @@ export class WooCommerceRepository {
 
     // Step 4: Return sorted array by name
     return Array.from(uniqueVariants.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  /**
+   * Get all global product attributes with their terms
+   * @returns Array of attributes with nested terms
+   */
+  async getAllProductAttributes(): Promise<Array<any>> {
+    const config = this.getConfig()
+    const url = new URL('/wp-json/wc/v3/products/attributes', config.url)
+
+    try {
+      // Fetch all attributes
+      const attributes = await $fetch<any[]>(url.toString(), {
+        headers: {
+          Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
+        },
+      })
+
+      if (!attributes || attributes.length === 0) {
+        return []
+      }
+
+      // Fetch all terms for each attribute in parallel
+      const attributesWithTerms = await Promise.all(
+        attributes.map(async (attr) => {
+          try {
+            const termsUrl = new URL(
+              `/wp-json/wc/v3/products/attributes/${attr.id}/terms`,
+              config.url
+            )
+            const terms = await $fetch<any[]>(termsUrl.toString(), {
+              headers: {
+                Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
+              },
+            })
+            return { ...attr, terms: terms || [] }
+          } catch {
+            // Return attribute with empty terms if fetch fails
+            return { ...attr, terms: [] }
+          }
+        })
+      )
+
+      return attributesWithTerms
+    } catch (error: any) {
+      console.error('WooCommerce API error:', error)
+      throw new Error(error.data?.message || error.message || 'Failed to fetch product attributes')
+    }
   }
 }
