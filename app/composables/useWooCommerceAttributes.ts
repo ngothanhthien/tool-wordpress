@@ -2,10 +2,12 @@
 import type { AttributeState } from '~/entities/WooCommerceAttribute.schema'
 
 export function useWooCommerceAttributes() {
+  // Attributes state - always initialized as empty array
   const attributes = ref<AttributeState[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  /** Fetch WooCommerce product attributes from API */
   async function fetchAttributes(credentials: {
     baseUrl: string
     consumerKey: string
@@ -33,13 +35,14 @@ export function useWooCommerceAttributes() {
         }))
       }))
     } catch (e: any) {
-      error.value = e.message || 'Failed to fetch attributes'
+      error.value = e.message || 'Failed to load product attributes'
       throw e
     } finally {
       loading.value = false
     }
   }
 
+  /** Toggle expansion state of an attribute section */
   function toggleAttributeExpanded(id: number) {
     const attr = attributes.value.find(a => a.id === id)
     if (attr) {
@@ -47,6 +50,7 @@ export function useWooCommerceAttributes() {
     }
   }
 
+  /** Toggle selection state of a single term */
   function toggleTermSelected(attributeId: number, termId: number) {
     const attr = attributes.value.find(a => a.id === attributeId)
     if (attr) {
@@ -57,6 +61,7 @@ export function useWooCommerceAttributes() {
     }
   }
 
+  /** Toggle selection state for all terms in an attribute */
   function toggleAllTerms(attributeId: number, selected: boolean) {
     const attr = attributes.value.find(a => a.id === attributeId)
     if (attr) {
@@ -66,6 +71,7 @@ export function useWooCommerceAttributes() {
     }
   }
 
+  /** Update price modifier for a specific term */
   function updateTermPrice(attributeId: number, termId: number, price: number) {
     const attr = attributes.value.find(a => a.id === attributeId)
     if (attr) {
@@ -76,6 +82,7 @@ export function useWooCommerceAttributes() {
     }
   }
 
+  /** Get all attributes with their selected terms */
   function getSelectedTerms() {
     return attributes.value
       .filter(attr => attr.terms.some(t => t.selected))
@@ -86,6 +93,7 @@ export function useWooCommerceAttributes() {
       }))
   }
 
+  /** Get total count of all selected terms across all attributes */
   function getTotalSelectedCount() {
     return attributes.value.reduce(
       (sum, attr) => sum + attr.terms.filter(t => t.selected).length,
