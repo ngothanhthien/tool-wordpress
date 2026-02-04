@@ -37,15 +37,15 @@ const stepperItems = [
     value: 0,
   },
   {
-    title: 'Categories',
-    description: 'Select product categories',
-    icon: 'i-heroicons-tag',
+    title: 'Media',
+    description: 'Select product images',
+    icon: 'i-heroicons-photo',
     value: 1,
   },
   {
-    title: 'Media & Price',
-    description: 'Set images and price',
-    icon: 'i-heroicons-photo',
+    title: 'Categories & Price',
+    description: 'Select categories and set price',
+    icon: 'i-heroicons-tag',
     value: 2,
   },
 ]
