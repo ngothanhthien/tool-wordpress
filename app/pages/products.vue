@@ -34,6 +34,7 @@ definePageMeta({
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
+const AttributeAccordion = resolveComponent('product/AttributeAccordion')
 
 const supabase = useSupabaseClient()
 const toast = useToast()
@@ -1208,141 +1209,29 @@ watch(currentStep, async (newStep) => {
 
           <!-- Step 3: Variants -->
           <div v-show="currentStep === 3" class="space-y-4">
-            <!-- Loading state -->
-            <div v-if="isFetchingVariants" class="flex items-center justify-center py-8">
-              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary" />
-              <span class="ml-2">Fetching attributes from WooCommerce...</span>
+            <div v-if="loadingAttributes" class="flex justify-center p-8">
+              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin" />
             </div>
 
-            <!-- No categories selected -->
-            <div v-else-if="selectedCategories.length === 0" class="text-center py-8 border-2 border-dashed rounded-lg">
-              <UIcon name="i-heroicons-swatch" class="w-12 h-12 mx-auto text-muted mb-2" />
-              <p class="text-muted">No categories selected</p>
-              <p class="text-sm text-muted-foreground mb-4">Go back and select categories to fetch suggested attributes</p>
-              <UButton
-                icon="i-heroicons-arrow-left"
-                size="sm"
-                @click="prevStep"
-              >
-                Go to Categories
+            <div v-else-if="attributesError" class="p-8 text-center">
+              <p class="text-gray-500 mb-4">Failed to load attributes</p>
+              <UButton size="sm" @click="fetchAttributes()">
+                Retry
               </UButton>
             </div>
 
-            <!-- Empty state -->
-            <div v-else-if="variantAttributes.length === 0" class="text-center py-8 border-2 border-dashed rounded-lg">
-              <UIcon name="i-heroicons-swatch" class="w-12 h-12 mx-auto text-muted mb-2" />
-              <p class="text-muted">No variant attributes found</p>
-              <p class="text-sm text-muted-foreground mb-4">Add attributes manually to create a variable product</p>
-              <UButton
-                icon="i-heroicons-plus"
-                size="sm"
-                @click="addAttribute"
-              >
-                Add Attribute
-              </UButton>
+            <div v-else-if="wcAttributes.length === 0" class="p-8 text-center">
+              <p class="text-gray-500">
+                No product attributes found. Create attributes in WooCommerce first.
+              </p>
             </div>
 
-            <!-- Grouped attributes list -->
-            <div v-else class="space-y-6">
-              <!-- Header with add button -->
-              <div class="flex items-center justify-between">
-                <div>
-                  <h3 class="text-sm font-medium">Variant Attributes</h3>
-                  <p class="text-xs text-muted">
-                    {{ variantAttributes.length }} attribute{{ variantAttributes.length > 1 ? 's' : '' }},
-                    {{ variantAttributes.reduce((sum, attr) => sum + attr.values.filter(v => v.selected).length, 0) }} selected value{{ variantAttributes.reduce((sum, attr) => sum + attr.values.filter(v => v.selected).length, 0) !== 1 ? 's' : '' }}
-                  </p>
-                </div>
-                <UButton
-                  icon="i-heroicons-plus"
-                  size="sm"
-                  @click="addAttribute"
-                >
-                  Add Attribute
-                </UButton>
-              </div>
-
-              <!-- Attribute groups -->
-              <div
-                v-for="(attribute, attrIndex) in variantAttributes"
-                :key="attrIndex"
-                class="border rounded-lg overflow-hidden"
-              >
-                <!-- Attribute header -->
-                <div class="bg-muted/50 px-4 py-3 flex items-center justify-between">
-                  <div class="flex-1">
-                    <UInput
-                      v-model="attribute.name"
-                      placeholder="Attribute name (e.g., Color, Size)"
-                      size="sm"
-                      class="font-medium"
-                    />
-                  </div>
-                  <UButton
-                    icon="i-heroicons-trash"
-                    size="xs"
-                    color="error"
-                    variant="ghost"
-                    class="ml-2"
-                    @click="deleteAttribute(attrIndex)"
-                  />
-                </div>
-
-                <!-- Attribute values -->
-                <div class="p-4 space-y-3">
-                  <div
-                    v-for="(value, valueIndex) in attribute.values"
-                    :key="valueIndex"
-                    class="flex items-center gap-3"
-                  >
-                    <!-- Checkbox -->
-                    <UCheckbox
-                      v-model="value.selected"
-                      :disabled="attribute.values.length === 1"
-                    />
-
-                    <!-- Value name -->
-                    <UInput
-                      v-model="value.name"
-                      placeholder="Value name (e.g., Red, M)"
-                      size="sm"
-                      class="flex-1"
-                    />
-
-                    <!-- Price -->
-                    <UInputNumber
-                      v-model="value.price"
-                      placeholder="Price"
-                      size="sm"
-                      :increment="false"
-                      :decrement="false"
-                      class="w-32"
-                    />
-
-                    <!-- Delete button -->
-                    <UButton
-                      icon="i-heroicons-x-mark"
-                      size="xs"
-                      color="error"
-                      variant="ghost"
-                      :disabled="attribute.values.length === 1"
-                      @click="deleteAttributeValue(attrIndex, valueIndex)"
-                    />
-                  </div>
-
-                  <!-- Add value button -->
-                  <UButton
-                    icon="i-heroicons-plus"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    @click="addAttributeValue(attrIndex)"
-                  >
-                    Add Value
-                  </UButton>
-                </div>
-              </div>
-            </div>
+            <AttributeAccordion
+              v-else
+              :attributes="wcAttributes"
+              :base-price="uploadForm.price"
+              @update:attributes="wcAttributes = $event"
+            />
           </div>
 
           <!-- Step 1: Media -->
