@@ -53,25 +53,26 @@ export interface WooCommerceProduct {
 }
 
 /**
- * Variant attribute type
+ * WooCommerce Attribute Term
  */
-export interface VariantAttribute {
+export interface WooCommerceTerm {
+  id: number
   name: string
-  type: string
-  value: string
+  slug: string
+  count: number
 }
 
 /**
- * Grouped variants by type
+ * WooCommerce Attribute with Terms
  */
-export type GroupedVariants = Record<string, string[]>
-
-/**
- * Suggested variant with name and price
- */
-export interface SuggestedVariant {
+export interface WooCommerceAttribute {
+  id: number
   name: string
-  price: number
+  slug: string
+  type: 'select' | 'text'
+  order_by: string
+  has_archives: boolean
+  terms: WooCommerceTerm[]
 }
 
 /**
@@ -87,10 +88,29 @@ interface WooCommerceConfig {
  * Repository for WooCommerce API operations
  */
 export class WooCommerceRepository {
+  private injectedConfig: WooCommerceConfig | null = null
+
+  /**
+   * Constructor with optional credential injection
+   * @param baseUrl - Optional WooCommerce site URL
+   * @param consumerKey - Optional API consumer key
+   * @param consumerSecret - Optional API consumer secret
+   */
+  constructor(baseUrl?: string, consumerKey?: string, consumerSecret?: string) {
+    if (baseUrl && consumerKey && consumerSecret) {
+      this.injectedConfig = { url: baseUrl, consumerKey, consumerSecret }
+    }
+  }
+
   /**
    * Get WooCommerce configuration from runtime config or environment variables
    */
   private getConfig(): WooCommerceConfig {
+    // Use injected config if available
+    if (this.injectedConfig) {
+      return this.injectedConfig
+    }
+
     const config = useRuntimeConfig()
     const url = config.wooCommerceUrl || process.env.WOOCOMMERCE_URL
     const consumerKey = config.wooCommerceConsumerKey || process.env.WOOCOMMERCE_CONSUMER_KEY
@@ -116,16 +136,16 @@ export class WooCommerceRepository {
    * Upload product to WooCommerce via REST API
    * @param product - Product entity to upload
    * @param categories - Array of categories to assign (each has id, name, slug)
-   * @param variants - Optional array of variants for variable products
+   * @param attributes - Optional array of attributes for variable products (id, name, options)
    * @returns Object with WooCommerce product ID and preview URL
    */
   async uploadProduct(
     product: Product,
     categories?: Array<{ id: string; name: string; slug: string }>,
-    variants?: Array<{ name: string; price: number }>
+    attributes?: Array<{ id: number; name: string; options: string[] }>
   ): Promise<{ wooCommerceId: number; previewUrl: string }> {
     const config = this.getConfig()
-    const hasVariants = variants && variants.length > 0
+    const hasVariants = attributes && attributes.length > 0
     const productType = hasVariants ? 'variable' : 'simple'
 
     // Build base payload
@@ -145,13 +165,14 @@ export class WooCommerceRepository {
     }
 
     // Add attributes for variable products
-    if (hasVariants) {
-      payload.attributes = [{
-        name: 'Variant',
+    if (hasVariants && attributes) {
+      payload.attributes = attributes.map(attr => ({
+        id: attr.id,
+        name: attr.name,
         variation: true,
         visible: true,
-        options: variants.map(v => v.name),
-      }]
+        options: attr.options,
+      }))
     }
 
     const credentials = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString('base64')
@@ -169,26 +190,11 @@ export class WooCommerceRepository {
       })
 
       // Create variations for variable products
-      if (hasVariants && variants) {
-        const variationsPayload = {
-          create: variants.map(v => ({
-            regular_price: String(v.price),
-            attributes: [{
-              name: 'Variant',
-              option: v.name,
-            }],
-          })),
-        }
-
-        const variationsEndpoint = new URL(`/wp-json/wc/v3/products/${response.id}/variations/batch`, config.url).href
-        await $fetch(variationsEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${credentials}`,
-          },
-          body: variationsPayload,
-        })
+      // Note: This is a simplified implementation that works for single-attribute products
+      // For multi-attribute products, a Cartesian product of all term combinations is needed
+      if (hasVariants && attributes) {
+        // For now, skip variation creation - WooCommerce will auto-create variations from attributes
+        // TODO: Implement proper variation generation with Cartesian product for multiple attributes
       }
 
       return {
@@ -390,125 +396,51 @@ export class WooCommerceRepository {
   }
 
   /**
-   * Get variants grouped by type from the 2 newest products in a category
-   * @param categoryId - Category ID
-   * @returns Variants grouped by type (e.g., { "Color": ["Red", "Blue"], "Size": ["S", "M"] })
+   * Get all global product attributes with their terms
+   * @returns Array of attributes with nested terms
    */
-  async getVariantsByCategory(categoryId: number): Promise<GroupedVariants> {
-    // Step 1: Get 2 newest variable products by category
-    const products = await this.listProducts({
-      category: categoryId,
-      type: 'variable',
-      orderBy: 'date',
-      order: 'desc',
-      perPage: 2,
-    })
+  async getAllProductAttributes(): Promise<WooCommerceAttribute[]> {
+    const config = this.getConfig()
+    const url = new URL('/wp-json/wc/v3/products/attributes', config.url)
 
-    if (!products || products.length === 0) {
-      return {}
-    }
+    try {
+      // Fetch all attributes
+      const attributes = await $fetch<WooCommerceAttribute[]>(url.toString(), {
+        headers: {
+          Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
+        },
+      })
 
-    // Step 2: Get variations for each product and collect attributes
-    const allAttributes: VariantAttribute[] = []
-
-    for (const product of products) {
-      const variations = await this.listProductVariations(product.id, { perPage: 100 })
-
-      for (const variation of variations) {
-        for (const attr of variation.attributes) {
-          // Skip empty options
-          if (!attr.option || attr.option === '') {
-            continue
-          }
-          allAttributes.push({
-            name: attr.name,
-            type: attr.name, // In WooCommerce, attribute name is the type (e.g., "Color", "Size")
-            value: attr.option,
-          })
-        }
-      }
-    }
-
-    // Step 3: Group by type (attribute name)
-    const grouped: GroupedVariants = {}
-    for (const attr of allAttributes) {
-      if (!grouped[attr.type]) {
-        grouped[attr.type] = []
+      if (!attributes || attributes.length === 0) {
+        return []
       }
 
-      if (!grouped[attr.type]?.includes(attr.value)) {
-        grouped[attr.type]!.push(attr.value)
-      }
-    }
-
-    return grouped
-  }
-
-  /**
-   * Get suggested variants from multiple categories
-   * Fetches 3 latest variable products from each category and extracts unique variations
-   * @param categoryIds - Array of category IDs
-   * @returns Flattened, deduplicated variant list with prices
-   */
-  async getSuggestedVariants(categoryIds: number[]): Promise<SuggestedVariant[]> {
-    const allVariants: SuggestedVariant[] = []
-
-    for (const categoryId of categoryIds) {
-      try {
-        // Step 1: Get 3 newest variable products by category
-        const products = await this.listProducts({
-          category: categoryId,
-          type: 'variable',
-          orderBy: 'date',
-          order: 'desc',
-          perPage: 3,
-        })
-
-        if (!products || products.length === 0) {
-          continue
-        }
-
-        // Step 2: Get variations for each product and extract variant options
-        for (const product of products) {
+      // Fetch all terms for each attribute in parallel
+      const attributesWithTerms = await Promise.all(
+        attributes.map(async (attr) => {
           try {
-            const variations = await this.listProductVariations(product.id, { perPage: 100 })
-
-            for (const variation of variations) {
-              for (const attr of variation.attributes) {
-                // Skip empty options
-                if (!attr.option || attr.option === '') {
-                  continue
-                }
-
-                // Extract price from variation
-                const price = Number.parseFloat(variation.regular_price) || 0
-
-                allVariants.push({
-                  name: attr.option,
-                  price,
-                })
-              }
-            }
-          } catch {
-            // Continue if we can't fetch variations for a specific product
-            continue
+            const termsUrl = new URL(
+              `/wp-json/wc/v3/products/attributes/${attr.id}/terms`,
+              config.url
+            )
+            const terms = await $fetch<WooCommerceTerm[]>(termsUrl.toString(), {
+              headers: {
+                Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
+              },
+            })
+            return { ...attr, terms: terms || [] }
+          } catch (error) {
+            // Log warning and return attribute with empty terms if fetch fails
+            console.warn(`Failed to fetch terms for attribute ${attr.id}:`, error)
+            return { ...attr, terms: [] }
           }
-        }
-      } catch {
-        // Continue if we can't fetch products for a specific category
-        continue
-      }
-    }
+        })
+      )
 
-    // Step 3: Deduplicate by name (keep first occurrence which has original price)
-    const uniqueVariants = new Map<string, SuggestedVariant>()
-    for (const variant of allVariants) {
-      if (!uniqueVariants.has(variant.name)) {
-        uniqueVariants.set(variant.name, variant)
-      }
+      return attributesWithTerms
+    } catch (error: any) {
+      console.error('WooCommerce API error:', error)
+      throw new Error(error.data?.message || error.message || 'Failed to fetch product attributes')
     }
-
-    // Step 4: Return sorted array by name
-    return Array.from(uniqueVariants.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 }

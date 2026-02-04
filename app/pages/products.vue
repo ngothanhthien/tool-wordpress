@@ -5,6 +5,7 @@ import type { TableColumn } from '@nuxt/ui'
 import { ProductStatus } from '~/entities/Product.schema'
 import { ProductRepository } from '~/repositories/supabase/product'
 import { CategoryRepository } from '~/repositories/supabase/category'
+import { useWooCommerceAttributes } from '~/composables/useWooCommerceAttributes'
 
 // Image item type for unified drag-and-drop list
 interface ImageItem {
@@ -14,25 +15,13 @@ interface ImageItem {
   watermarked: boolean // Track watermark status
 }
 
-// Variant attribute value type
-interface VariantAttributeValue {
-  name: string        // e.g., "Red", "M"
-  price: number
-  selected: boolean
-}
-
-// Variant attribute type (groups attributes like Color, Size, etc.)
-interface VariantAttribute {
-  name: string        // e.g., "Color", "Size"
-  values: VariantAttributeValue[]
-}
-
 definePageMeta({
   layout: 'default',
 })
 
 const UButton = resolveComponent('UButton')
 const UBadge = resolveComponent('UBadge')
+const AttributeAccordion = resolveComponent('product/AttributeAccordion')
 
 const supabase = useSupabaseClient()
 const toast = useToast()
@@ -49,15 +38,24 @@ const uploadLoading = ref(false)
 const currentStep = ref(0)
 const isImagePreviewOpen = ref(false)
 const previewImage = ref('')
-const isFetchingVariants = ref(false)
 const isWatermarking = ref(false)
 const watermarkProgress = ref(0)
 const watermarkStatus = ref<'idle' | 'processing' | 'completed' | 'failed'>('idle')
 const watermarkErrors = ref<string[]>([])
 const isWatermarkErrorModalOpen = ref(false)
 
-// Variant attributes state (for attribute-based variant grouping)
-const variantAttributes = ref<VariantAttribute[]>([])
+// WooCommerce attributes (global attributes fetched from WC)
+const {
+  attributes: wcAttributes,
+  loading: loadingAttributes,
+  error: attributesError,
+  fetchAttributes,
+  toggleAttributeExpanded,
+  toggleTermSelected,
+  toggleAllTerms,
+  updateTermPrice,
+  getSelectedTerms
+} = useWooCommerceAttributes()
 
 // Stepper items
 const stepperItems = [
@@ -340,13 +338,6 @@ function closeUploadModal() {
   selectedFiles.value = []
   uploadingFiles.value = []
   uploadProgress.value = []
-  variantAttributes.value = []
-  // Reset watermark state
-  isWatermarking.value = false
-  watermarkProgress.value = 0
-  watermarkStatus.value = 'idle'
-  watermarkErrors.value = []
-  isWatermarkErrorModalOpen.value = false
 }
 
 // Remove category from selection (handles Category objects and ID strings)
@@ -394,11 +385,6 @@ async function nextStep() {
       // Start background watermarking (non-blocking)
       startWatermarking() // Don't await - let it run in background
     }
-  }
-
-  // Fetch variants when moving from Categories (2) to Variants (3)
-  if (currentStep.value === 2 && selectedCategories.value.length > 0) {
-    await fetchVariantAttributes()
   }
 
   if (currentStep.value < stepperItems.length - 1) {
@@ -467,59 +453,14 @@ async function submitUpload() {
     return
   }
 
-  // Validate and flatten variant attributes
-  const validVariants: { name: string; price: number }[] = []
+  // Get selected attributes in WooCommerce format
+  const selectedAttributes = getSelectedTerms()
 
-  for (const attr of variantAttributes.value) {
-    // Validate attribute name
-    if (!attr.name || attr.name.trim() === '') {
-      toast.add({
-        title: 'Validation Error',
-        description: 'Attribute name cannot be empty',
-        color: 'error',
-        icon: 'i-heroicons-exclamation-triangle',
-      })
-      return
-    }
-
-    for (const val of attr.values) {
-      // Skip unselected values
-      if (!val.selected) {
-        continue
-      }
-
-      // Validate value name
-      if (!val.name || val.name.trim() === '') {
-        toast.add({
-          title: 'Validation Error',
-          description: `Variant value name cannot be empty in attribute: ${attr.name}`,
-          color: 'error',
-          icon: 'i-heroicons-exclamation-triangle',
-        })
-        return
-      }
-
-      // Validate price
-      if (typeof val.price !== 'number' || val.price < 0) {
-        toast.add({
-          title: 'Validation Error',
-          description: `Invalid price for variant: ${val.name}`,
-          color: 'error',
-          icon: 'i-heroicons-exclamation-triangle',
-        })
-        return
-      }
-
-      // Add to flattened list
-      validVariants.push({ name: val.name, price: val.price })
-    }
-  }
-
-  // Require at least one selected variant value
-  if (validVariants.length === 0) {
+  // Require at least one attribute with at least one selected term
+  if (selectedAttributes.length === 0) {
     toast.add({
       title: 'Validation Error',
-      description: 'At least one variant value must be selected',
+      description: 'At least one attribute term must be selected',
       color: 'error',
       icon: 'i-heroicons-exclamation-triangle',
     })
@@ -543,7 +484,13 @@ async function submitUpload() {
         images: imagesToUpload,
         price: uploadForm.price,
         categories: selectedCategories.value,
-        variants: validVariants,
+        attributes: selectedAttributes.map(attr => ({
+          id: attr.id,
+          name: attr.name,
+          variation: true,
+          visible: true,
+          options: attr.options
+        })),
       },
     })
 
@@ -879,129 +826,26 @@ function removeFailedAndContinue() {
   }
 }
 
-// ========== Variant Management Functions ==========
-
-// Fetch variant attributes from WooCommerce
-async function fetchVariantAttributes() {
-  if (selectedCategories.value.length === 0) {
-    variantAttributes.value = []
-    return
-  }
-
-  isFetchingVariants.value = true
-  try {
-    const categoryIds = selectedCategories.value.map(c => Number(c.id))
-    const response = await $fetch('/api/woocommerce/variant-attributes', {
-      method: 'POST',
-      body: { category_ids: categoryIds },
-    })
-
-    if (response && typeof response === 'object' && 'attributes' in response) {
-      const data = response as { attributes: Record<string, string[]> }
-
-      // Transform API response to editable state structure
-      variantAttributes.value = Object.entries(data.attributes)
-        .filter(([_, values]) => values.length > 0)  // Skip empty attributes
-        .map(([name, values]) => ({
-          name,
-          values: values.map(v => ({
-            name: v,
-            price: uploadForm.price || 0,
-            selected: true,
-          })),
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))  // Sort alphabetically
-
-      const attrCount = variantAttributes.value.length
-      const valueCount = variantAttributes.value.reduce((sum, attr) => sum + attr.values.length, 0)
-
-      if (attrCount > 0) {
-        toast.add({
-          title: 'Attributes Found',
-          description: `Found ${attrCount} attribute${attrCount > 1 ? 's' : ''} with ${valueCount} value${valueCount > 1 ? 's' : ''}`,
-          color: 'success',
-          icon: 'i-heroicons-check-circle',
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching variant attributes:', error)
-    toast.add({
-      title: 'Could not fetch attributes',
-      description: 'You can still add attributes manually',
-      color: 'warning',
-      icon: 'i-heroicons-exclamation-triangle',
-    })
-    variantAttributes.value = []
-  } finally {
-    isFetchingVariants.value = false
-  }
-}
-
-// Add a new attribute group
-function addAttribute() {
-  variantAttributes.value.push({
-    name: '',
-    values: [{
-      name: '',
-      price: uploadForm.price || 0,
-      selected: true,
-    }],
-  })
-}
-
-// Add a new value to an attribute
-function addAttributeValue(attributeIndex: number) {
-  if (attributeIndex < 0 || attributeIndex >= variantAttributes.value.length) {
-    return
-  }
-  const attr = variantAttributes.value[attributeIndex]
-  if (attr) {
-    attr.values.push({
-      name: '',
-      price: uploadForm.price || 0,
-      selected: true,
-    })
-  }
-}
-
-// Delete an entire attribute group
-function deleteAttribute(index: number) {
-  if (index < 0 || index >= variantAttributes.value.length) {
-    return
-  }
-  variantAttributes.value.splice(index, 1)
-  toast.add({
-    title: 'Attribute Removed',
-    description: 'Attribute group removed from list',
-    color: 'neutral',
-    icon: 'i-heroicons-trash',
-  })
-}
-
-// Delete a specific value within an attribute
-function deleteAttributeValue(attributeIndex: number, valueIndex: number) {
-  if (attributeIndex < 0 || attributeIndex >= variantAttributes.value.length) {
-    return
-  }
-  const attr = variantAttributes.value[attributeIndex]
-  if (attr) {
-    if (valueIndex < 0 || valueIndex >= attr.values.length) {
-      return
-    }
-    attr.values.splice(valueIndex, 1)
-    // Remove attribute if no values left
-    if (attr.values.length === 0) {
-      variantAttributes.value.splice(attributeIndex, 1)
-    }
-  }
-}
-
 // Watch for file selection changes and auto-upload
 watch(selectedFiles, (newFiles) => {
   if (newFiles?.length) {
     uploadFiles(newFiles)
     selectedFiles.value = []
+  }
+})
+
+// Fetch WooCommerce attributes when entering variants step
+watch(currentStep, async (newStep) => {
+  if (newStep === 3 && wcAttributes.value.length === 0) {
+    try {
+      await fetchAttributes()
+    } catch (e) {
+      toast.add({
+        title: 'Failed to load attributes',
+        description: 'Please check WooCommerce credentials',
+        color: 'error'
+      })
+    }
   }
 })
 </script>
@@ -1185,141 +1029,29 @@ watch(selectedFiles, (newFiles) => {
 
           <!-- Step 3: Variants -->
           <div v-show="currentStep === 3" class="space-y-4">
-            <!-- Loading state -->
-            <div v-if="isFetchingVariants" class="flex items-center justify-center py-8">
-              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary" />
-              <span class="ml-2">Fetching attributes from WooCommerce...</span>
+            <div v-if="loadingAttributes" class="flex justify-center p-8">
+              <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin" />
             </div>
 
-            <!-- No categories selected -->
-            <div v-else-if="selectedCategories.length === 0" class="text-center py-8 border-2 border-dashed rounded-lg">
-              <UIcon name="i-heroicons-swatch" class="w-12 h-12 mx-auto text-muted mb-2" />
-              <p class="text-muted">No categories selected</p>
-              <p class="text-sm text-muted-foreground mb-4">Go back and select categories to fetch suggested attributes</p>
-              <UButton
-                icon="i-heroicons-arrow-left"
-                size="sm"
-                @click="prevStep"
-              >
-                Go to Categories
+            <div v-else-if="attributesError" class="p-8 text-center">
+              <p class="text-gray-500 mb-4">Failed to load attributes</p>
+              <UButton size="sm" @click="fetchAttributes()">
+                Retry
               </UButton>
             </div>
 
-            <!-- Empty state -->
-            <div v-else-if="variantAttributes.length === 0" class="text-center py-8 border-2 border-dashed rounded-lg">
-              <UIcon name="i-heroicons-swatch" class="w-12 h-12 mx-auto text-muted mb-2" />
-              <p class="text-muted">No variant attributes found</p>
-              <p class="text-sm text-muted-foreground mb-4">Add attributes manually to create a variable product</p>
-              <UButton
-                icon="i-heroicons-plus"
-                size="sm"
-                @click="addAttribute"
-              >
-                Add Attribute
-              </UButton>
+            <div v-else-if="wcAttributes.length === 0" class="p-8 text-center">
+              <p class="text-gray-500">
+                No product attributes found. Create attributes in WooCommerce first.
+              </p>
             </div>
 
-            <!-- Grouped attributes list -->
-            <div v-else class="space-y-6">
-              <!-- Header with add button -->
-              <div class="flex items-center justify-between">
-                <div>
-                  <h3 class="text-sm font-medium">Variant Attributes</h3>
-                  <p class="text-xs text-muted">
-                    {{ variantAttributes.length }} attribute{{ variantAttributes.length > 1 ? 's' : '' }},
-                    {{ variantAttributes.reduce((sum, attr) => sum + attr.values.filter(v => v.selected).length, 0) }} selected value{{ variantAttributes.reduce((sum, attr) => sum + attr.values.filter(v => v.selected).length, 0) !== 1 ? 's' : '' }}
-                  </p>
-                </div>
-                <UButton
-                  icon="i-heroicons-plus"
-                  size="sm"
-                  @click="addAttribute"
-                >
-                  Add Attribute
-                </UButton>
-              </div>
-
-              <!-- Attribute groups -->
-              <div
-                v-for="(attribute, attrIndex) in variantAttributes"
-                :key="attrIndex"
-                class="border rounded-lg overflow-hidden"
-              >
-                <!-- Attribute header -->
-                <div class="bg-muted/50 px-4 py-3 flex items-center justify-between">
-                  <div class="flex-1">
-                    <UInput
-                      v-model="attribute.name"
-                      placeholder="Attribute name (e.g., Color, Size)"
-                      size="sm"
-                      class="font-medium"
-                    />
-                  </div>
-                  <UButton
-                    icon="i-heroicons-trash"
-                    size="xs"
-                    color="error"
-                    variant="ghost"
-                    class="ml-2"
-                    @click="deleteAttribute(attrIndex)"
-                  />
-                </div>
-
-                <!-- Attribute values -->
-                <div class="p-4 space-y-3">
-                  <div
-                    v-for="(value, valueIndex) in attribute.values"
-                    :key="valueIndex"
-                    class="flex items-center gap-3"
-                  >
-                    <!-- Checkbox -->
-                    <UCheckbox
-                      v-model="value.selected"
-                      :disabled="attribute.values.length === 1"
-                    />
-
-                    <!-- Value name -->
-                    <UInput
-                      v-model="value.name"
-                      placeholder="Value name (e.g., Red, M)"
-                      size="sm"
-                      class="flex-1"
-                    />
-
-                    <!-- Price -->
-                    <UInputNumber
-                      v-model="value.price"
-                      placeholder="Price"
-                      size="sm"
-                      :increment="false"
-                      :decrement="false"
-                      class="w-32"
-                    />
-
-                    <!-- Delete button -->
-                    <UButton
-                      icon="i-heroicons-x-mark"
-                      size="xs"
-                      color="error"
-                      variant="ghost"
-                      :disabled="attribute.values.length === 1"
-                      @click="deleteAttributeValue(attrIndex, valueIndex)"
-                    />
-                  </div>
-
-                  <!-- Add value button -->
-                  <UButton
-                    icon="i-heroicons-plus"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    @click="addAttributeValue(attrIndex)"
-                  >
-                    Add Value
-                  </UButton>
-                </div>
-              </div>
-            </div>
+            <AttributeAccordion
+              v-else
+              :attributes="wcAttributes"
+              :base-price="uploadForm.price"
+              @update:attributes="wcAttributes = $event"
+            />
           </div>
 
           <!-- Step 1: Media -->
