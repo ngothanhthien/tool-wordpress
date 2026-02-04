@@ -831,6 +831,48 @@ async function startWatermarking() {
   }
 }
 
+/**
+ * Retry watermarking for failed images
+ */
+async function retryFailedImages() {
+  isWatermarkErrorModalOpen.value = false
+  await startWatermarking() // Only processes non-watermarked images
+}
+
+/**
+ * Remove images that failed to watermark and continue
+ */
+function removeFailedAndContinue() {
+  // Get count before removal
+  const failedCount = watermarkErrors.value.length
+
+  // Remove images that failed to watermark (not marked as watermarked)
+  allImages.value = allImages.value.filter(img => img.watermarked)
+  isWatermarkErrorModalOpen.value = false
+  watermarkErrors.value = []
+
+  // Reset watermark status to idle since we've cleaned up
+  watermarkStatus.value = 'idle'
+  watermarkProgress.value = 0
+
+  toast.add({
+    title: 'Failed Images Removed',
+    description: `${failedCount} image(s) removed from list`,
+    color: 'warning',
+    icon: 'i-heroicons-exclamation-triangle'
+  })
+
+  // Check if we still have images
+  if (allImages.value.length === 0) {
+    toast.add({
+      title: 'No Images Remaining',
+      description: 'Please upload at least one image to continue',
+      color: 'error',
+      icon: 'i-heroicons-exclamation-triangle'
+    })
+  }
+}
+
 // ========== Variant Management Functions ==========
 
 // Fetch variant attributes from WooCommerce
