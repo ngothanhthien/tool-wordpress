@@ -31,3 +31,4 @@ plan_to_beads
 # bv (beads viewer) local config and caches
 .bv/
 .mcp.json
+.worktrees/
