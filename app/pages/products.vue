@@ -798,6 +798,53 @@ function deleteVariant(id: string) {
   }
 }
 
+// Add a new attribute group
+function addAttribute() {
+  variantAttributes.value.push({
+    name: '',
+    values: [{
+      name: '',
+      price: uploadForm.price || 0,
+      selected: true,
+    }],
+  })
+}
+
+// Add a new value to an attribute
+function addAttributeValue(attributeIndex: number) {
+  const attr = variantAttributes.value[attributeIndex]
+  if (attr) {
+    attr.values.push({
+      name: '',
+      price: uploadForm.price || 0,
+      selected: true,
+    })
+  }
+}
+
+// Delete an entire attribute group
+function deleteAttribute(index: number) {
+  variantAttributes.value.splice(index, 1)
+  toast.add({
+    title: 'Attribute Removed',
+    description: 'Attribute group removed from list',
+    color: 'neutral',
+    icon: 'i-heroicons-trash',
+  })
+}
+
+// Delete a specific value within an attribute
+function deleteAttributeValue(attributeIndex: number, valueIndex: number) {
+  const attr = variantAttributes.value[attributeIndex]
+  if (attr) {
+    attr.values.splice(valueIndex, 1)
+    // Remove attribute if no values left
+    if (attr.values.length === 0) {
+      variantAttributes.value.splice(attributeIndex, 1)
+    }
+  }
+}
+
 // Watch for file selection changes and auto-upload
 watch(selectedFiles, (newFiles) => {
   if (newFiles?.length) {
