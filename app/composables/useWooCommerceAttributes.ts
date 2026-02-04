@@ -8,21 +8,14 @@ export function useWooCommerceAttributes() {
   const error = ref<string | null>(null)
 
   /** Fetch WooCommerce product attributes from API */
-  async function fetchAttributes(credentials: {
-    baseUrl: string
-    consumerKey: string
-    consumerSecret: string
-  }) {
+  async function fetchAttributes() {
     loading.value = true
     error.value = null
 
     try {
       const response = await $fetch<{
         attributes: AttributeState[]
-      }>('/api/woocommerce/product-attributes', {
-        method: 'GET',
-        query: credentials
-      })
+      }>('/api/woocommerce/product-attributes')
 
       // Add UI state
       attributes.value = response.attributes.map(attr => ({

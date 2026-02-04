@@ -1017,14 +1017,7 @@ watch(selectedFiles, (newFiles) => {
 watch(currentStep, async (newStep) => {
   if (newStep === 3 && wcAttributes.value.length === 0) {
     try {
-      // Get WooCommerce credentials from environment or user settings
-      const wcCredentials = {
-        baseUrl: process.env.NUXT_WOOCOMMERCE_URL || '',
-        consumerKey: process.env.NUXT_WOOCOMMERCE_KEY || '',
-        consumerSecret: process.env.NUXT_WOOCOMMERCE_SECRET || ''
-      }
-
-      await fetchAttributes(wcCredentials)
+      await fetchAttributes()
     } catch (e) {
       toast.add({
         title: 'Failed to load attributes',
