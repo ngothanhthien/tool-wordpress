@@ -67,6 +67,14 @@ export interface VariantAttribute {
 export type GroupedVariants = Record<string, string[]>
 
 /**
+ * Suggested variant with name and price
+ */
+export interface SuggestedVariant {
+  name: string
+  price: number
+}
+
+/**
  * WooCommerce configuration interface
  */
 interface WooCommerceConfig {
@@ -108,18 +116,26 @@ export class WooCommerceRepository {
    * Upload product to WooCommerce via REST API
    * @param product - Product entity to upload
    * @param categories - Array of categories to assign (each has id, name, slug)
+   * @param variants - Optional array of variants for variable products
    * @returns Object with WooCommerce product ID and preview URL
    */
-  async uploadProduct(product: Product, categories?: Array<{ id: string; name: string; slug: string }>): Promise<{ wooCommerceId: number; previewUrl: string }> {
+  async uploadProduct(
+    product: Product,
+    categories?: Array<{ id: string; name: string; slug: string }>,
+    variants?: Array<{ name: string; price: number }>
+  ): Promise<{ wooCommerceId: number; previewUrl: string }> {
     const config = this.getConfig()
+    const hasVariants = variants && variants.length > 0
+    const productType = hasVariants ? 'variable' : 'simple'
 
-    const payload = {
+    // Build base payload
+    const payload: any = {
       name: product.seo_title,
-      type: 'simple',
+      type: productType,
       status: 'publish',
       description: product.html_content,
       short_description: product.short_description,
-      regular_price: product.price ? String(product.price) : '',
+      regular_price: hasVariants ? '' : (product.price ? String(product.price) : ''),
       images: product.images.map((src, index) => ({ src, alt: this.generateImageAlt(product.seo_title), position: index })),
       categories: categories?.map(cat => ({ id: Number.parseInt(cat.id, 10) })) || [],
       meta_data: [
@@ -128,10 +144,21 @@ export class WooCommerceRepository {
       ],
     }
 
+    // Add attributes for variable products
+    if (hasVariants) {
+      payload.attributes = [{
+        name: 'Variant',
+        variation: true,
+        visible: true,
+        options: variants.map(v => v.name),
+      }]
+    }
+
     const credentials = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString('base64')
     const endpoint = new URL('/wp-json/wc/v3/products', config.url).href
 
     try {
+      // Create parent product
       const response = await $fetch<WooCommerceProductResponse>(endpoint, {
         method: 'POST',
         headers: {
@@ -140,6 +167,29 @@ export class WooCommerceRepository {
         },
         body: payload,
       })
+
+      // Create variations for variable products
+      if (hasVariants && variants) {
+        const variationsPayload = {
+          create: variants.map(v => ({
+            regular_price: String(v.price),
+            attributes: [{
+              name: 'Variant',
+              option: v.name,
+            }],
+          })),
+        }
+
+        const variationsEndpoint = new URL(`/wp-json/wc/v3/products/${response.id}/variations/batch`, config.url).href
+        await $fetch(variationsEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${credentials}`,
+          },
+          body: variationsPayload,
+        })
+      }
 
       return {
         wooCommerceId: response.id,
@@ -392,5 +442,73 @@ export class WooCommerceRepository {
     }
 
     return grouped
+  }
+
+  /**
+   * Get suggested variants from multiple categories
+   * Fetches 3 latest variable products from each category and extracts unique variations
+   * @param categoryIds - Array of category IDs
+   * @returns Flattened, deduplicated variant list with prices
+   */
+  async getSuggestedVariants(categoryIds: number[]): Promise<SuggestedVariant[]> {
+    const allVariants: SuggestedVariant[] = []
+
+    for (const categoryId of categoryIds) {
+      try {
+        // Step 1: Get 3 newest variable products by category
+        const products = await this.listProducts({
+          category: categoryId,
+          type: 'variable',
+          orderBy: 'date',
+          order: 'desc',
+          perPage: 3,
+        })
+
+        if (!products || products.length === 0) {
+          continue
+        }
+
+        // Step 2: Get variations for each product and extract variant options
+        for (const product of products) {
+          try {
+            const variations = await this.listProductVariations(product.id, { perPage: 100 })
+
+            for (const variation of variations) {
+              for (const attr of variation.attributes) {
+                // Skip empty options
+                if (!attr.option || attr.option === '') {
+                  continue
+                }
+
+                // Extract price from variation
+                const price = Number.parseFloat(variation.regular_price) || 0
+
+                allVariants.push({
+                  name: attr.option,
+                  price,
+                })
+              }
+            }
+          } catch {
+            // Continue if we can't fetch variations for a specific product
+            continue
+          }
+        }
+      } catch {
+        // Continue if we can't fetch products for a specific category
+        continue
+      }
+    }
+
+    // Step 3: Deduplicate by name (keep first occurrence which has original price)
+    const uniqueVariants = new Map<string, SuggestedVariant>()
+    for (const variant of allVariants) {
+      if (!uniqueVariants.has(variant.name)) {
+        uniqueVariants.set(variant.name, variant)
+      }
+    }
+
+    // Step 4: Return sorted array by name
+    return Array.from(uniqueVariants.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 }
