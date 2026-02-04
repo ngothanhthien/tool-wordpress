@@ -33,6 +33,9 @@ export default defineNuxtConfig({
       url: process.env.SUPABASE_URL,
       serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     },
+    // Watermark microservice configuration
+    watermarkApiKey: process.env.WATERMARK_API_KEY || '',
+    watermarkBaseUrl: process.env.WATERMARK_BASE_URL || 'http://localhost:8005',
     // Public keys (optional, if needed client-side)
     public: {},
   },
