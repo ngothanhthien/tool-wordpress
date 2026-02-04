@@ -426,7 +426,7 @@ async function submitUpload() {
           <!-- Stepper -->
           <UStepper :items="stepperItems" v-model="currentStep" />
 
-          <!-- Step 1: Content -->
+          <!-- Step 0: Content -->
           <div v-show="currentStep === 0" class="space-y-4">
             <!-- SEO Title -->
             <UFormField label="SEO Title" required>
@@ -452,7 +452,10 @@ async function submitUpload() {
             <UFormField label="HTML Content">
               <UTextarea v-model="uploadForm.html_content" class="w-full" placeholder="HTML content" :rows="5" readonly />
             </UFormField>
+          </div>
 
+          <!-- Step 1: Categories -->
+          <div v-show="currentStep === 1" class="space-y-4">
             <!-- Categories -->
             <UFormField label="Categories">
               <USelectMenu
@@ -475,7 +478,7 @@ async function submitUpload() {
           </div>
 
           <!-- Step 2: Media & Price -->
-          <div v-show="currentStep === 1" class="space-y-4">
+          <div v-show="currentStep === 2" class="space-y-4">
             <!-- Price -->
             <UFormField label="Price (VND)" required>
               <UInputNumber
