@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const attributes = await wc.getAllProductAttributes()
-    return { attributes }
+    return attributes
   } catch (error) {
     throw createError({
       statusCode: 500,

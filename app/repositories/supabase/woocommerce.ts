@@ -62,6 +62,29 @@ export interface VariantAttribute {
 }
 
 /**
+ * WooCommerce Attribute Term
+ */
+export interface WooCommerceTerm {
+  id: number
+  name: string
+  slug: string
+  count: number
+}
+
+/**
+ * WooCommerce Attribute with Terms
+ */
+export interface WooCommerceAttribute {
+  id: number
+  name: string
+  slug: string
+  type: 'select' | 'text'
+  order_by: string
+  has_archives: boolean
+  terms: WooCommerceTerm[]
+}
+
+/**
  * Grouped variants by type
  */
 export type GroupedVariants = Record<string, string[]>
@@ -535,13 +558,13 @@ export class WooCommerceRepository {
    * Get all global product attributes with their terms
    * @returns Array of attributes with nested terms
    */
-  async getAllProductAttributes(): Promise<Array<any>> {
+  async getAllProductAttributes(): Promise<WooCommerceAttribute[]> {
     const config = this.getConfig()
     const url = new URL('/wp-json/wc/v3/products/attributes', config.url)
 
     try {
       // Fetch all attributes
-      const attributes = await $fetch<any[]>(url.toString(), {
+      const attributes = await $fetch<WooCommerceAttribute[]>(url.toString(), {
         headers: {
           Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
         },
@@ -559,14 +582,15 @@ export class WooCommerceRepository {
               `/wp-json/wc/v3/products/attributes/${attr.id}/terms`,
               config.url
             )
-            const terms = await $fetch<any[]>(termsUrl.toString(), {
+            const terms = await $fetch<WooCommerceTerm[]>(termsUrl.toString(), {
               headers: {
                 Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
               },
             })
             return { ...attr, terms: terms || [] }
-          } catch {
-            // Return attribute with empty terms if fetch fails
+          } catch (error) {
+            // Log warning and return attribute with empty terms if fetch fails
+            console.warn(`Failed to fetch terms for attribute ${attr.id}:`, error)
             return { ...attr, terms: [] }
           }
         })
