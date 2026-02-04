@@ -29,7 +29,6 @@
           color="neutral"
           variant="ghost"
           class="w-full"
-          @click="toggleAttribute(item.id)"
         >
           <template #leading>
             <UCheckbox
@@ -88,7 +87,10 @@ interface Emits {
   (e: 'update:attributes', value: AttributeState[]): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  attributes: () => [],
+  basePrice: null
+})
 const emit = defineEmits<Emits>()
 
 const localAttributes = computed(() => props.attributes.map(attr => ({
@@ -119,13 +121,6 @@ const totalSelected = computed(() =>
   )
 )
 
-function toggleAttribute(id: number) {
-  const attrs = [...localAttributes.value]
-  const attr = attrs.find(a => a.id === id)
-  if (attr) attr.expanded = !attr.expanded
-  emit('update:attributes', attrs)
-}
-
 function isAllSelected(id: number) {
   const attr = localAttributes.value.find(a => a.id === id)
   return attr?.terms.every(t => t.selected) && attr?.terms.length > 0
@@ -139,7 +134,10 @@ function isSomeSelected(id: number) {
 }
 
 function toggleAll(id: number, selected: boolean) {
-  const attrs = [...localAttributes.value]
+  const attrs = localAttributes.value.map(attr => ({
+    ...attr,
+    terms: attr.terms.map(term => ({ ...term }))
+  }))
   const attr = attrs.find(a => a.id === id)
   if (attr) {
     attr.terms.forEach(term => { term.selected = selected })
@@ -148,7 +146,10 @@ function toggleAll(id: number, selected: boolean) {
 }
 
 function toggleTerm(attributeId: number, termId: number, selected: boolean) {
-  const attrs = [...localAttributes.value]
+  const attrs = localAttributes.value.map(attr => ({
+    ...attr,
+    terms: attr.terms.map(term => ({ ...term }))
+  }))
   const attr = attrs.find(a => a.id === attributeId)
   if (attr) {
     const term = attr.terms.find(t => t.id === termId)
@@ -158,7 +159,10 @@ function toggleTerm(attributeId: number, termId: number, selected: boolean) {
 }
 
 function updatePrice(attributeId: number, termId: number, price: number) {
-  const attrs = [...localAttributes.value]
+  const attrs = localAttributes.value.map(attr => ({
+    ...attr,
+    terms: attr.terms.map(term => ({ ...term }))
+  }))
   const attr = attrs.find(a => a.id === attributeId)
   if (attr) {
     const term = attr.terms.find(t => t.id === termId)
