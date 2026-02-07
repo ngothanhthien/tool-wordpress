@@ -59,6 +59,13 @@ const isWatermarkErrorModalOpen = ref(false)
 // Variant attributes state (for attribute-based variant grouping)
 const variantAttributes = ref<VariantAttribute[]>([])
 
+interface Variant {
+  id: string
+  name: string
+  price: number
+}
+const variants = ref<Variant[]>([])
+
 // Stepper items
 const stepperItems = [
   {
