@@ -140,7 +140,7 @@ export class WooCommerceRepository {
       categories: categories?.map(cat => ({ id: Number.parseInt(cat.id, 10) })) || [],
       meta_data: [
         { key: '_yoast_wpseo_metadesc', value: product.meta_description },
-        { key: '_yoast_wpseo_focuskw', value: product.keywords.join(', ') },
+        { key: '_yoast_wpseo_focuskw', value: product.main_keyword || product.keywords.join(', ') },
       ],
     }
 

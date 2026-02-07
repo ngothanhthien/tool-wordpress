@@ -10,6 +10,7 @@ describe('/api/watermark', async () => {
     const response = await $fetch('/api/watermark', {
       method: 'POST',
       body: {},
+      ignoreResponseError: true,  // Allow receiving error response body
     })
 
     // Expect error response
@@ -25,6 +26,7 @@ describe('/api/watermark', async () => {
       body: {
         image_url: 'https://picsum.photos/800/600',
       },
+      ignoreResponseError: true,  // Allow receiving error response body
     })
 
     // Response structure should be correct (even if API fails in test)
