@@ -94,6 +94,7 @@ const uploadForm = reactive({
   short_description: '',
   html_content: '',
   keywords: [] as string[],
+  main_keyword: null as string | null,
   images: [] as string[],
   price: null as number | null,
 })
@@ -305,6 +306,7 @@ function openUploadModal(product: Product) {
   uploadForm.short_description = product.short_description
   uploadForm.html_content = product.html_content
   uploadForm.keywords = [...product.keywords]
+  uploadForm.main_keyword = product.main_keyword || null
   uploadForm.images = [...product.images]
   uploadForm.price = product.price
   // Pre-fill selected categories from raw_categories
@@ -540,6 +542,7 @@ async function submitUpload() {
         short_description: uploadForm.short_description,
         html_content: uploadForm.html_content,
         keywords: uploadForm.keywords,
+        main_keyword: uploadForm.main_keyword,
         images: imagesToUpload,
         price: uploadForm.price,
         categories: selectedCategories.value,
@@ -938,29 +941,6 @@ async function fetchVariantAttributes() {
   }
 }
 
-// Add a new variant
-function addVariant() {
-  variants.value.push({
-    id: `variant-${Date.now()}-${Math.random()}`,
-    name: '',
-    price: uploadForm.price || 0,
-  })
-}
-
-// Delete a variant
-function deleteVariant(id: string) {
-  const index = variants.value.findIndex(v => v.id === id)
-  if (index > -1) {
-    variants.value.splice(index, 1)
-    toast.add({
-      title: 'Variant Removed',
-      description: 'Variant removed from list',
-      color: 'neutral',
-      icon: 'i-heroicons-trash',
-    })
-  }
-}
-
 // Add a new attribute group
 function addAttribute() {
   variantAttributes.value.push({
@@ -1138,6 +1118,11 @@ watch(selectedFiles, (newFiles) => {
             <!-- Keywords -->
             <UFormField label="Keywords">
               <UInputTags v-model="uploadForm.keywords" class="w-full" placeholder="Add keywords" />
+            </UFormField>
+
+            <!-- Main Keyword -->
+            <UFormField label="Main Keyword">
+              <UInput v-model="uploadForm.main_keyword" class="w-full" placeholder="Primary SEO keyword (e.g., 'ao thun cotton')" />
             </UFormField>
 
             <!-- Short Description -->
