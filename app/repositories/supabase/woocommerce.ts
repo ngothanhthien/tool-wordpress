@@ -26,6 +26,15 @@ export interface WooCommerceCategory {
 }
 
 /**
+ * WooCommerce Brand response type
+ */
+export interface WooCommerceBrand {
+  id: number
+  name: string
+  slug: string
+}
+
+/**
  * WooCommerce Product Variation response type
  */
 export interface WooCommerceProductVariation {
@@ -270,6 +279,41 @@ export class WooCommerceRepository {
       })
     } catch {
       return null
+    }
+  }
+
+  /**
+   * List all product brands
+   * Brand is stored as a product attribute (ID=1) with terms
+   * @param options - Query options
+   * @returns Array of brands
+   */
+  async listBrands(options?: {
+    perPage?: number
+  }): Promise<WooCommerceBrand[]> {
+    const config = this.getConfig()
+    const params: Record<string, string> = {}
+
+    if (options?.perPage) {
+      params.per_page = String(options.perPage)
+    }
+
+    // Brand attribute ID is hardcoded as 1 (discovered during API research)
+    const brandAttributeId = 1
+    const url = new URL(`/wp-json/wc/v3/products/attributes/${brandAttributeId}/terms`, config.url)
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.append(key, value)
+    })
+
+    try {
+      return await $fetch<WooCommerceBrand[]>(url.toString(), {
+        headers: {
+          Authorization: this.buildAuthHeader(config.consumerKey, config.consumerSecret),
+        },
+      })
+    } catch (error: any) {
+      console.error('WooCommerce API error:', error)
+      throw new Error(error.data?.message || error.message || 'Failed to fetch brands')
     }
   }
 

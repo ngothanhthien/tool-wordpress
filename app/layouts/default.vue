@@ -29,6 +29,12 @@ const items = computed<NavigationMenuItem[][]>(() => [
       icon: 'i-lucide-folders',
       to: '/categories',
       active: route.path === '/categories'
+    },
+    {
+      label: 'Brands',
+      icon: 'i-lucide-tag',
+      to: '/brands',
+      active: route.path === '/brands'
     }
   ]
 ])
