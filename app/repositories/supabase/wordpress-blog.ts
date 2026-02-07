@@ -1,5 +1,10 @@
-import type { NuxtRuntimeConfig } from 'nuxt/app'
 import type { WpPost, Post } from '~/entities/Post.schema'
+
+interface WordPressConfig {
+  wooCommerceUrl: string
+  wooCommerceConsumerKey: string
+  wooCommerceConsumerSecret: string
+}
 
 interface WordPressBlogRepositoryOptions {
   baseUrl: string
@@ -10,7 +15,7 @@ interface WordPressBlogRepositoryOptions {
 export class WordPressBlogRepository {
   private options: WordPressBlogRepositoryOptions
 
-  constructor(config: Pick<NuxtRuntimeConfig, 'wooCommerceUrl' | 'wooCommerceConsumerKey' | 'wooCommerceConsumerSecret'>) {
+  constructor(config: any) {
     this.options = {
       baseUrl: config.wooCommerceUrl!,
       consumerKey: config.wooCommerceConsumerKey!,
